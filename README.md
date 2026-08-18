@@ -1,9 +1,10 @@
-# CV HACKATHON TOOLKIT PRO
+# CV Hackathon Toolkit Pro 🚀
 
 Готовый инструментарий для быстрого решения задач компьютерного зрения на хакатонах.
 
-## СТРУКТУРА ПРОЕКТА
+## 📁 Структура проекта
 
+```
 cv_hackathon/
 ├── configs/                    # Конфигурационные файлы
 │   └── config.yaml             # Основной конфиг обучения
@@ -34,33 +35,42 @@ cv_hackathon/
 ├── MANUAL.txt                  # Полное руководство
 ├── CHEATSHEET.txt              # Шпаргалка с командами
 ├── PRESENTATION_TEMPLATE.txt   # Шаблон презентации
+├── HACKATHON_GUIDE.txt         # Руководство по хакатону
 │
 ├── requirements.txt            # Зависимости
 ├── .gitignore                  # Игнорирование файлов
 └── README.md                   # Этот файл
+```
 
-## БЫСТРЫЙ СТАРТ
+## 🚀 Быстрый старт
 
 ### 1. Установка
 
+```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+```
 
 ### 2. Проверка окружения
 
+```bash
 python check_env.py
+```
 
 ### 3. Подготовка данных
 
+```bash
 # Если данные в одной папке:
 python utils/split_data.py --source data/all_data
 
 # Проверить данные:
 python utils/check_data.py --path data/train
+```
 
 ### 4. Обучение
 
+```bash
 # Быстрый тест (1 эпоха):
 python train.py --fast
 
@@ -69,34 +79,40 @@ python train.py
 
 # С конкретной моделью:
 python train.py --model efficientnet_b0
+```
 
 ### 5. Инференс
 
+```bash
 # Одно изображение:
 python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
 
 # Папка с изображениями:
 python predict.py --checkpoint checkpoints/best_model.pth --folder test_images/
+```
 
 ### 6. Веб-интерфейс
 
+```bash
 python app.py
 # Открыть http://localhost:7860
+```
 
-## ДОКУМЕНТАЦИЯ
+## 📚 Документация
 
-- MANUAL.txt - полное руководство по всем файлам и функциям
-- CHEATSHEET.txt - быстрые команды для работы
-- PRESENTATION_TEMPLATE.txt - шаблон для презентации результатов
+- **MANUAL.txt** — полное руководство по всем файлам и функциям
+- **CHEATSHEET.txt** — быстрые команды для работы
+- **PRESENTATION_TEMPLATE.txt** — шаблон для презентации результатов
+- **HACKATHON_GUIDE.txt** — руководство по хакатону с подводными камнями
 
-## ПОДДЕРЖИВАЕМЫЕ МОДЕЛИ (timm)
+## 🎯 Поддерживаемые модели (timm)
 
-- resnet18, resnet34, resnet50 - быстрые и надежные
-- efficientnet_b0, efficientnet_b3 - точные и эффективные
-- mobilenetv3_large_100 - для мобильных устройств
-- vit_base_patch16_224 - Vision Transformer
+- `resnet18`, `resnet34`, `resnet50` — быстрые и надежные
+- `efficientnet_b0`, `efficientnet_b3` — точные и эффективные
+- `mobilenetv3_large_100` — для мобильных устройств
+- `vit_base_patch16_224` — Vision Transformer
 
-## АУГМЕНТАЦИИ (Albumentations)
+## 📊 Аугментации (Albumentations)
 
 - HorizontalFlip
 - RandomRotate90
@@ -105,8 +121,9 @@ python app.py
 - HueSaturationValue
 - CoarseDropout (CutOut)
 
-## ОСНОВНЫЕ КОМАНДЫ
+## 🔧 Основные команды
 
+```bash
 # Проверка окружения
 python check_env.py
 
@@ -124,60 +141,67 @@ python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
 
 # Веб-интерфейс
 python app.py
+```
 
-## СОВЕТЫ ДЛЯ ХАКАТОНА
+## 💡 Советы для хакатона
 
-1. Начните с простого: ResNet18 + базовые аугментации
-2. Итеративно улучшайте: добавляйте сложность постепенно
-3. Следите за метриками: используйте графики и confusion matrix
-4. Автоматизируйте: используйте app.py для быстрых экспериментов
-5. Документируйте: сохраняйте все эксперименты и результаты
-6. Работайте в команде: разделите задачи между участниками
-7. Готовьте демо: сделайте красивый интерфейс для презентации
-8. Тестируйте заранее: проверьте весь пайплайн до хакатона
+1. **Начните с простого**: ResNet18 + базовые аугментации
+2. **Итеративно улучшайте**: добавляйте сложность постепенно
+3. **Следите за метриками**: используйте графики и confusion matrix
+4. **Автоматизируйте**: используйте app.py для быстрых экспериментов
+5. **Документируйте**: сохраняйте все эксперименты и результаты
+6. **Работайте в команде**: разделите задачи между участниками
+7. **Готовьте демо**: сделайте красивый интерфейс для презентации
+8. **Тестируйте заранее**: проверьте весь пайплайн до хакатона
 
-## РЕШЕНИЕ ПРОБЛЕМ
+## 🔍 Решение проблем
 
 ### CUDA out of memory
 
+```bash
 python train.py --batch_size 16
 python train.py --model resnet18
+```
 
 ### Медленное обучение
 
-- Уменьшите image_size в конфиге
-- Увеличьте num_workers
-- Используйте mixed_precision: true
+- Уменьшите `image_size` в конфиге
+- Увеличьте `num_workers`
+- Используйте `mixed_precision: true`
 
 ### Overfitting
 
 - Добавьте аугментации
-- Увеличьте weight_decay
+- Увеличьте `weight_decay`
 - Используйте early stopping
 
-## МЕТРИКИ
+## 📈 Метрики
 
 Модель автоматически считает:
+
 - Accuracy
 - F1-score (macro и weighted)
 - Precision
 - Recall
 - Confusion Matrix
 
-Все графики сохраняются в checkpoints/:
-- training_history_*.png - графики обучения
-- confusion_matrix.png - матрица ошибок
+Все графики сохраняются в `checkpoints/`:
 
-## ПОДГОТОВКА К ХАКАТОНУ
+- `training_history_*.png` — графики обучения
+- `confusion_matrix.png` — матрица ошибок
 
-Перед хакатоном:
+## 🎓 Подготовка к хакатону
+
+### Перед хакатоном
+
 1. Установите все зависимости
 2. Проверьте работу скриптов
 3. Скачайте предобученные модели
 4. Изучите документацию
 5. Потренируйтесь на тестовых данных
 
-Во время хакатона:
+### Во время хакатона
+
 1. Изучите данные
 2. Запустите baseline
 3. Улучшайте итеративно
