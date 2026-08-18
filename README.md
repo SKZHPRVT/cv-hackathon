@@ -7,47 +7,52 @@
 ```
 cv_hackathon/
 ├── configs/                    # Конфигурационные файлы
-│   ├── config.yaml             # Основной конфиг обучения
+│   ├── config.yaml             # Основной конфиг (аугментации конфигурируемые)
 │   └── yolo_data.yaml          # Конфиг для YOLO
 │
 ├── utils/                      # Вспомогательные модули
 │   ├── __init__.py             # Инициализация пакета
-│   ├── dataset.py              # Загрузка данных и аугментации
-│   ├── metrics.py              # Метрики и визуализации
-│   ├── split_data.py           # Разделение данных
-│   └── check_data.py           # Анализ датасета
+│   ├── dataset.py              # Датасеты (folder + CSV), аугментации
+│   ├── metrics.py              # Метрики (число классов из class_names)
+│   ├── split_data.py           # Стратифицированное разделение
+│   ├── check_data.py           # Анализ датасета
+│   └── find_duplicates.py      # Поиск дубликатов и утечек
 │
 ├── checkpoints/                # Сохраненные модели
 │   ├── best_model.pth          # Лучшая модель
-│   └── last_model.pth          # Последняя модель
+│   ├── last_model.pth          # Последняя модель
+│   └── experiment_*.json       # Журналы экспериментов
 │
 ├── data/                       # Данные
-│   ├── train/                  # Тренировочные данные
-│   ├── val/                    # Валидационные данные
-│   └── test/                   # Тестовые данные
+│   ├── train/                  # Тренировочные
+│   ├── val/                    # Валидационные
+│   └── test/                   # Тестовые
 │
-├── models/                     # Дополнительные модели
+├── models/                     # Кеш моделей (offline)
 │
-├── train.py                    # Обучение классификации
-├── yolo_train.py               # Обучение YOLO (детекция/сегментация)
-├── predict.py                  # Инференс классификации
-├── tta_predict.py              # Инференс с TTA
-├── export_onnx.py              # Конвертация в ONNX
+├── train.py                    # Обучение (seed, журнал, гарантия чекпоинта)
+├── yolo_train.py               # YOLO (детекция/сегментация)
+├── predict.py                  # Инференс
+├── tta_predict.py              # TTA (none/hflip/vflip/all)
+├── export_onnx.py              # ONNX + проверка эквивалентности
 ├── embedding_search.py         # Поиск похожих объектов
 ├── hf_models.py                # Hugging Face модели
-├── app.py                      # Веб-интерфейс (Gradio)
-├── check_env.py                # Проверка окружения
+├── generate_submission.py      # Генерация submission.csv
+├── download_models.py          # Скачивание моделей для offline
+├── app.py                      # Веб-интерфейс (RGB/BGR fix, HF кеш)
+├── check_env.py                # Проверка окружения + smoke test
+├── test_pipeline.sh            # Полный тест пайплайна
 │
 ├── MANUAL.txt                  # Полное руководство
-├── CHEATSHEET.txt              # Шпаргалка с командами
+├── CHEATSHEET.txt              # Шпаргалка
 ├── PRESENTATION_TEMPLATE.txt   # Шаблон презентации
-├── HACKATHON_GUIDE.txt         # Руководство по хакатону
-├── APP_GUIDE.txt               # Руководство по веб-интерфейсу
-├── embedding_search_README.txt # Руководство по поиску объектов
-├── hf_models_README.txt        # Руководство по HF моделям
+├── HACKATHON_GUIDE.txt         # Гайд по хакатону
+├── APP_GUIDE.txt               # Гайд по веб-интерфейсу
+├── embedding_search_README.txt # Гайд по поиску
+├── hf_models_README.txt        # Гайд по HF моделям
 │
 ├── requirements.txt            # Зависимости
-├── .gitignore                  # Игнорирование файлов
+├── .gitignore                  # Игнорирование
 └── README.md                   # Этот файл
 ```
 
@@ -61,125 +66,118 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Проверка окружения
+### 2. Проверка окружения (включая smoke test)
 
 ```bash
 python check_env.py
 ```
 
-### 3. Подготовка данных
+### 3. Скачивание моделей для offline-режима
 
 ```bash
-# Если данные в одной папке:
-python utils/split_data.py --source data/all_data
+# Все модели:
+python download_models.py --all
+
+# Только timm:
+python download_models.py --timm
+
+# Только YOLO:
+python download_models.py --yolo
+
+# Только HF:
+python download_models.py --hf
+
+# Проверить кеш:
+python download_models.py --check
+```
+
+### 4. Подготовка данных
+
+```bash
+# Стратифицированное разделение:
+python utils/split_data.py --source data/all_data --seed 42
 
 # Проверить данные:
 python utils/check_data.py --path data/train
+
+# Поиск дубликатов:
+python utils/find_duplicates.py --data data/train --exact
+
+# Поиск почти дубликатов:
+python utils/find_duplicates.py --data data/train --near
+
+# Поиск утечек:
+python utils/find_duplicates.py --data data/train --leakage --train data/train --val data/val --test data/test
 ```
 
-### 4. Обучение классификации
+### 5. Обучение классификации
 
 ```bash
-# Быстрый тест (1 эпоха):
-python train.py --fast
+# Быстрый тест:
+python train.py --fast --seed 42
 
 # Полное обучение:
-python train.py
+python train.py --model resnet18 --epochs 50 --seed 42 --exp_name baseline
 
-# С конкретной моделью:
-python train.py --model efficientnet_b0
+# С CSV-разметкой (укажите train_csv/val_csv в config.yaml)
 ```
 
-### 5. Обучение детекции (YOLO)
+### 6. Обучение YOLO
 
 ```bash
-# Обучение детекции:
+# Детекция:
 python yolo_train.py --mode train --data configs/yolo_data.yaml --model n --epochs 50
 
-# Обучение сегментации:
+# Сегментация:
 python yolo_train.py --mode train --data configs/yolo_data.yaml --task segment
-
-# Инференс YOLO:
-python yolo_train.py --mode predict --model runs/detect/train/weights/best.pt --source test.jpg
 ```
 
-### 6. Hugging Face модели
+### 7. Инференс
 
 ```bash
-# Проверка установки:
-python hf_models.py --mode check
-
-# Список доступных моделей:
-python hf_models.py --mode list
-
-# Информация о датасете:
-python hf_models.py --mode dataset --dataset cifar10
-
-# Классификация:
-python hf_models.py --mode classify --image test.jpg --model google/vit-base-patch16-224
-
-# Zero-shot классификация:
-python hf_models.py --mode zero_shot --image test.jpg --labels cat dog car person
-
-# Сегментация (SAM):
-python hf_models.py --mode segment --image test.jpg
-
-# Генерация:
-python hf_models.py --mode generate --prompt "a cat sitting on a table"
-```
-
-### 7. Поиск похожих объектов
-
-```bash
-# Создать базу эмбеддингов:
-python embedding_search.py --mode build --input data/database_images/ --database embeddings.pkl
-
-# Найти похожие:
-python embedding_search.py --mode search --query test.jpg --database embeddings.pkl --top_k 5
-
-# Сравнить два изображения:
-python embedding_search.py --mode compare --input image1.jpg --image2 image2.jpg
-```
-
-### 8. Инференс
-
-```bash
-# Обычное предсказание:
+# Обычное:
 python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
 
-# Предсказание с TTA (повышенная точность):
-python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+# TTA:
+python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg --tta hflip
+python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg --tta all
 
-# Конвертация в ONNX:
-python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx
+# ONNX с проверкой:
+python export_onnx.py --checkpoint checkpoints/best_model.pth --test --speed
+```
 
-# Конвертация с проверкой скорости:
-python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx --test
+### 8. Генерация submission
+
+```bash
+# Одна метка:
+python generate_submission.py --checkpoint checkpoints/best_model.pth --test_folder data/test --format label
+
+# Вероятности:
+python generate_submission.py --checkpoint checkpoints/best_model.pth --test_folder data/test --format probabilities
 ```
 
 ### 9. Веб-интерфейс
 
 ```bash
 python app.py
-# Открыть http://localhost:7860
+# http://localhost:7860
 ```
 
-Веб-интерфейс включает 5 вкладок:
-- 🔮 Инференс — классификация, батч-обработка
-- 📊 Анализ данных — статистика, аугментации
-- 🔀 Разделение данных — train/val/test
-- 🎓 Обучение — запуск обучения
-- 🤗 Hugging Face — ViT, CLIP, SAM, Stable Diffusion
+### 10. Полный тест пайплайна
+
+```bash
+bash test_pipeline.sh
+```
 
 ## 📚 Документация
 
 - **MANUAL.txt** — полное руководство по всем файлам и функциям
-- **CHEATSHEET.txt** — быстрые команды для работы
-- **PRESENTATION_TEMPLATE.txt** — шаблон для презентации результатов
-- **HACKATHON_GUIDE.txt** — руководство по хакатону с подводными камнями
-- **APP_GUIDE.txt** — руководство по веб-интерфейсу
-- **embedding_search_README.txt** — руководство по поиску похожих объектов
-- **hf_models_README.txt** — руководство по Hugging Face моделям
+- **CHEATSHEET.txt** — быстрые команды
+- **HACKATHON_GUIDE.txt** — гайд по хакатону
+- **APP_GUIDE.txt** — веб-интерфейс
+- **PRESENTATION_TEMPLATE.txt** — презентация
+- **embedding_search_README.txt** — поиск объектов
+- **hf_models_README.txt** — HF модели
 
 ## 🎯 Поддерживаемые задачи
 
@@ -192,34 +190,51 @@ python app.py
 - Задачи: detect, segment, classify, pose
 
 ### 3. Сегментация
-- **YOLO-seg**: инстанс-сегментация
-- **SAM**: Segment Anything Model
-- **DETR**: детекция + сегментация
+- YOLO-seg: инстанс-сегментация
+- SAM: Segment Anything Model
+- DETR: детекция + сегментация
 
 ### 4. Распознавание и поиск
-- Поиск похожих объектов (embedding search)
+- Поиск похожих объектов
 - Распознавание лиц
 - Re-identification
-- Поиск дубликатов
 
 ### 5. Zero-shot классификация (CLIP)
-- Классификация без обучения
-- Распознавание новых классов
-- Текстовая классификация
+- Без обучения
+- Новые классы
 
 ### 6. Генерация изображений
 - Stable Diffusion
-- Создание синтетических данных
-- Аугментация датасета
+- Синтетические данные
 
-## 📊 Аугментации (Albumentations)
+## 📊 Аугментации (конфигурируемые, все off по умолчанию)
 
-- HorizontalFlip
-- RandomRotate90
-- ShiftScaleRotate
-- RandomBrightnessContrast
-- HueSaturationValue
-- CoarseDropout (CutOut)
+```yaml
+augmentation:
+  horizontal_flip: false
+  vertical_flip: false
+  random_rotate: false
+  random_crop: false
+  brightness_contrast: false
+  hue_saturation: false
+  coarse_dropout: false
+```
+
+## 🔍 Ключевые улучшения
+
+- ✅ Reproducibility (seed для Python, NumPy, PyTorch, CUDA)
+- ✅ Стратифицированный split с защитой от пустых классов
+- ✅ Гарантия сохранения чекпоинта (даже при val_acc=0)
+- ✅ Единый препроцессинг (mean/std/image_size из чекпоинта)
+- ✅ Поиск дубликатов (MD5 + pHash + leakage)
+- ✅ Smoke test (forward, optimizer, save/load, DataLoader)
+- ✅ Журнал экспериментов (JSON)
+- ✅ CSV-разметка
+- ✅ Submission generator (label / probabilities)
+- ✅ Offline-режим (download_models.py)
+- ✅ HF кеширование в памяти
+- ✅ ONNX эквивалентность
+- ✅ Полный тест пайплайна (test_pipeline.sh)
 
 ## 🔧 Основные команды
 
@@ -227,51 +242,41 @@ python app.py
 # Проверка окружения
 python check_env.py
 
-# Анализ данных
+# Offline модели
+python download_models.py --all
+
+# Данные
+python utils/split_data.py --source data/all_data --seed 42
 python utils/check_data.py --path data/train
+python utils/find_duplicates.py --data data/train --exact
 
-# Разделение данных
-python utils/split_data.py --source data/all_data
-
-# Обучение классификации
-python train.py --model resnet18 --epochs 50
-
-# Обучение детекции
-python yolo_train.py --mode train --data configs/yolo_data.yaml
-
-# Hugging Face - проверка
-python hf_models.py --mode check
-
-# Hugging Face - датасеты
-python hf_models.py --mode dataset --dataset cifar10
-
-# Поиск похожих
-python embedding_search.py --mode search --query test.jpg --database embeddings.pkl
+# Обучение
+python train.py --model resnet18 --epochs 50 --seed 42 --exp_name baseline
 
 # Инференс
 python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
 
-# TTA предсказание
-python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+# TTA
+python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg --tta all
 
-# ONNX конвертация с проверкой
-python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx --test
+# Submission
+python generate_submission.py --checkpoint checkpoints/best_model.pth --test_folder data/test
 
-# Веб-интерфейс
-python app.py
+# Полный тест
+bash test_pipeline.sh
 ```
 
 ## 💡 Советы для хакатона
 
 1. **Начните с простого**: ResNet18 + базовые аугментации
 2. **Итеративно улучшайте**: добавляйте сложность постепенно
-3. **Следите за метриками**: используйте графики и confusion matrix
-4. **Автоматизируйте**: используйте app.py для быстрых экспериментов
-5. **Документируйте**: сохраняйте все эксперименты и результаты
-6. **Работайте в команде**: разделите задачи между участниками
-7. **Готовьте демо**: сделайте красивый интерфейс для презентации
-8. **Тестируйте заранее**: проверьте весь пайплайн до хакатона
-9. **Скачайте модели заранее**: HF модели требуют интернет при первом запуске
+3. **Следите за метриками**: графики и confusion matrix
+4. **Автоматизируйте**: app.py для экспериментов
+5. **Документируйте**: журналы экспериментов
+6. **Работайте в команде**: разделите задачи
+7. **Готовьте демо**: веб-интерфейс
+8. **Тестируйте заранее**: test_pipeline.sh
+9. **Скачайте модели заранее**: download_models.py --all
 
 ## 🔍 Решение проблем
 
@@ -284,52 +289,36 @@ python train.py --model resnet18
 
 ### Медленное обучение
 
-- Уменьшите `image_size` в конфиге
+- Уменьшите `image_size`
 - Увеличьте `num_workers`
 - Используйте `mixed_precision: true`
 
 ### Overfitting
 
-- Добавьте аугментации
+- Включите аугментации в config
 - Увеличьте `weight_decay`
 - Используйте early stopping
 
-### HF модель не загружается
+### Порт занят
 
-- Проверьте интернет-соединение
-- Скачайте модель заранее
-- Используйте локальный путь
-
-## 📈 Метрики
-
-Модель автоматически считает:
-
-- Accuracy
-- F1-score (macro и weighted)
-- Precision
-- Recall
-- Confusion Matrix
-
-Все графики сохраняются в `checkpoints/`:
-
-- `training_history_*.png` — графики обучения
-- `confusion_matrix.png` — матрица ошибок
+```bash
+lsof -ti:7860 | xargs kill -9
+```
 
 ## 🎓 Подготовка к хакатону
 
 ### Перед хакатоном
 
-1. Установите все зависимости
-2. Проверьте работу скриптов
-3. Скачайте предобученные модели
-4. Изучите документацию
-5. Потренируйтесь на тестовых данных
-6. Скачайте HF модели заранее
+1. Установите зависимости
+2. Проверьте окружение (check_env.py)
+3. Скачайте модели (download_models.py)
+4. Запустите полный тест (test_pipeline.sh)
+5. Изучите документацию
 
 ### Во время хакатона
 
 1. Изучите данные
-2. Запустите baseline
-3. Улучшайте итеративно
-4. Сохраняйте результаты
-5. Готовьте презентацию
+2. Проверьте дубликаты
+3. Запустите baseline
+4. Улучшайте итеративно
+5. Готовьте submission
