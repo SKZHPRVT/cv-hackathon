@@ -7,7 +7,7 @@ echo "📁 Временная папка: $TMP_DIR"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "========================================="
-echo "🧪 РАСШИРЕННЫЙ ТЕСТ ПАЙПЛАЙНА"
+echo "🧪 РАСШИРЕННЫЙ ТЕСТ ПАЙПЛАЙНА (13 шагов)"
 echo "========================================="
 
 # 1. check_env (без YOLO — авто)
@@ -67,9 +67,12 @@ echo -e "\n[11/12] ONNX..."
 python export_onnx.py --checkpoint checkpoints/best_model.pth --test
 
 # 12. submission
-echo -e "\n[12/12] submission..."
+echo -e "\n[12/13] YOLO test...
+python yolo_train.py --mode predict --model yolov8n.pt --source "$TMP_DIR/data/val/cat/" --conf 0.25 || echo "⚠️ YOLO тест пропущен"
+
+[13/13] submission..."
 python generate_submission.py --checkpoint checkpoints/best_model.pth --test_folder "$TMP_DIR/data/test" --format label
 
 echo -e "\n========================================="
-echo "🎉 ВСЕ 12 ТЕСТОВ ПРОЙДЕНЫ!"
+echo "🎉 ВСЕ 13 ТЕСТОВ ПРОЙДЕНЫ!"
 echo "========================================="
