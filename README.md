@@ -28,11 +28,12 @@ cv_hackathon/
 │
 ├── models/                     # Дополнительные модели
 │
-├── train.py                    # Скрипт обучения (классификация)
-├── yolo_train.py               # Скрипт обучения YOLO (детекция)
-├── predict.py                  # Скрипт инференса
+├── train.py                    # Обучение классификации
+├── yolo_train.py               # Обучение YOLO (детекция/сегментация)
+├── predict.py                  # Инференс классификации
 ├── tta_predict.py              # Инференс с TTA
 ├── export_onnx.py              # Конвертация в ONNX
+├── embedding_search.py         # Поиск похожих объектов
 ├── app.py                      # Веб-интерфейс (Gradio)
 ├── check_env.py                # Проверка окружения
 │
@@ -40,6 +41,7 @@ cv_hackathon/
 ├── CHEATSHEET.txt              # Шпаргалка с командами
 ├── PRESENTATION_TEMPLATE.txt   # Шаблон презентации
 ├── HACKATHON_GUIDE.txt         # Руководство по хакатону
+├── embedding_search_README.txt # Руководство по поиску объектов
 │
 ├── requirements.txt            # Зависимости
 ├── .gitignore                  # Игнорирование файлов
@@ -88,17 +90,30 @@ python train.py --model efficientnet_b0
 ### 5. Обучение детекции (YOLO)
 
 ```bash
-# Обучение YOLO:
+# Обучение детекции:
 python yolo_train.py --mode train --data configs/yolo_data.yaml --model n --epochs 50
+
+# Обучение сегментации:
+python yolo_train.py --mode train --data configs/yolo_data.yaml --task segment
 
 # Инференс YOLO:
 python yolo_train.py --mode predict --model runs/detect/train/weights/best.pt --source test.jpg
-
-# Экспорт YOLO в ONNX:
-python yolo_train.py --mode export --model runs/detect/train/weights/best.pt
 ```
 
-### 6. Инференс
+### 6. Поиск похожих объектов
+
+```bash
+# Создать базу эмбеддингов:
+python embedding_search.py --mode build --input data/database_images/ --database embeddings.pkl
+
+# Найти похожие:
+python embedding_search.py --mode search --query test.jpg --database embeddings.pkl --top_k 5
+
+# Сравнить два изображения:
+python embedding_search.py --mode compare --input image1.jpg --image2 image2.jpg
+```
+
+### 7. Инференс
 
 ```bash
 # Обычное предсказание:
@@ -111,7 +126,7 @@ python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
 python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx
 ```
 
-### 7. Веб-интерфейс
+### 8. Веб-интерфейс
 
 ```bash
 python app.py
@@ -124,18 +139,29 @@ python app.py
 - **CHEATSHEET.txt** — быстрые команды для работы
 - **PRESENTATION_TEMPLATE.txt** — шаблон для презентации результатов
 - **HACKATHON_GUIDE.txt** — руководство по хакатону с подводными камнями
+- **embedding_search_README.txt** — руководство по поиску похожих объектов
 
 ## 🎯 Поддерживаемые задачи
 
-### Классификация (timm)
+### 1. Классификация изображений (timm)
 - `resnet18`, `resnet34`, `resnet50` — быстрые и надежные
 - `efficientnet_b0`, `efficientnet_b3` — точные и эффективные
 - `mobilenetv3_large_100` — для мобильных устройств
 - `vit_base_patch16_224` — Vision Transformer
 
-### Детекция (YOLO)
+### 2. Детекция объектов (YOLO)
 - `yolov8n`, `yolov8s`, `yolov8m`, `yolov8l`, `yolov8x`
 - Задачи: detect, segment, classify, pose
+
+### 3. Сегментация (YOLO-seg)
+- Выделение пикселей объектов
+- Инстанс-сегментация
+
+### 4. Распознавание и поиск (Embedding Search)
+- Поиск похожих объектов
+- Распознавание лиц
+- Re-identification
+- Поиск дубликатов
 
 ## 📊 Аугментации (Albumentations)
 
@@ -163,6 +189,9 @@ python train.py --model resnet18 --epochs 50
 
 # Обучение детекции
 python yolo_train.py --mode train --data configs/yolo_data.yaml
+
+# Поиск похожих
+python embedding_search.py --mode search --query test.jpg --database embeddings.pkl
 
 # Инференс
 python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg

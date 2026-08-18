@@ -95,3 +95,10 @@ predictions/
 !PRESENTATION_TEMPLATE.txt
 !HACKATHON_GUIDE.txt
 !requirements.txt
+
+# Embeddings database
+embeddings.pkl
+search_results/
+
+# Исключения для embedding search
+!embedding_search_README.txt
