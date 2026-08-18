@@ -137,18 +137,24 @@ def check_offline(strict=False):
     except ImportError:
         print("  ⚠️ Transformers не установлен, пропускаю HF проверку")
     
-    # Проверяем YOLO
-    yolo_cache = Path.home() / '.cache' / 'ultralytics'
-    if yolo_cache.exists():
-        yolo_models = list(yolo_cache.glob('*.pt'))
-        if yolo_models:
-            print(f"  ✅ YOLO кеш: {len(yolo_models)} моделей")
-        else:
-            print(f"  ⚠️ YOLO кеш пуст")
-            if strict:
-                all_ok = False
-    else:
-        print(f"  ⚠️ YOLO кеш не найден")
+    # Проверяем YOLO (в кеше, корне и MODELS_DIR)
+    yolo_found = False
+    yolo_locations = [
+        Path.home() / '.cache' / 'ultralytics',
+        Path('.'),
+        MODELS_DIR
+    ]
+    
+    for loc in yolo_locations:
+        if loc.exists():
+            yolo_models = list(loc.glob('*.pt'))
+            if yolo_models:
+                print(f"  ✅ YOLO модели найдены в {loc}: {len(yolo_models)} шт")
+                yolo_found = True
+                break
+    
+    if not yolo_found:
+        print(f"  ⚠️ YOLO модели не найдены")
         if strict:
             all_ok = False
     
