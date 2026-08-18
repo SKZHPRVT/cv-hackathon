@@ -12,7 +12,7 @@ echo "========================================="
 
 # 1. check_env (без YOLO — авто)
 echo -e "\n[1/12] check_env..."
-python check_env.py < /dev/null || { echo "❌ check_env провален"; exit 1; }
+python check_env.py || { echo "❌ check_env провален"; exit 1; }
 
 # 2. Создание данных
 echo -e "\n[2/12] Создание данных..."

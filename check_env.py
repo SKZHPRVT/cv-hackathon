@@ -173,6 +173,12 @@ def check_structure():
             print_status(f"Файл {file_name} отсутствует", "ERROR")
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description='Проверка окружения')
+    parser.add_argument('--no-yolo', action='store_true', help='Пропустить YOLO тест')
+    parser.add_argument('--with-yolo', action='store_true', help='Запустить YOLO тест')
+    args = parser.parse_args()
+    
     print("="*70)
     print("🔍 ПРОВЕРКА ОКРУЖЕНИЯ CV HACKATHON TOOLKIT")
     print("="*70)
@@ -218,10 +224,11 @@ def main():
     smoke_test_timm()
     smoke_test_onnx()
     
-    # YOLO опционально
-    response = input("\n🔬 Запустить smoke test YOLO? (скачает ~6MB) [y/N]: ")
-    if response.lower() == 'y':
+    # YOLO опционально (по умолчанию пропускаем)
+    if args.with_yolo:
         smoke_test_yolo()
+    elif not args.no_yolo:
+        print("\n⚠️ YOLO тест пропущен (используйте --with-yolo для запуска)")
     
     print("\n" + "="*70)
     if FAILED:
