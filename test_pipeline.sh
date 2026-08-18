@@ -10,9 +10,9 @@ echo "========================================="
 echo "🧪 РАСШИРЕННЫЙ ТЕСТ ПАЙПЛАЙНА"
 echo "========================================="
 
-# 1. check_env
+# 1. check_env (без YOLO — авто)
 echo -e "\n[1/12] check_env..."
-python check_env.py || { echo "❌ check_env провален"; exit 1; }
+python check_env.py < /dev/null || { echo "❌ check_env провален"; exit 1; }
 
 # 2. Создание данных
 echo -e "\n[2/12] Создание данных..."
@@ -40,44 +40,35 @@ python utils/find_duplicates.py --data "$TMP_DIR/data/all_data" --near
 
 # 6. split
 echo -e "\n[6/12] split..."
-python utils/split_data.py --source "$TMP_DIR/data/all_data" --seed 42 --min_val_per_class 2
+python utils/split_data.py --source "$TMP_DIR/data/all_data" --seed 42 --min_val_per_class 1
 
 # 7. leakage check
 echo -e "\n[7/12] leakage check..."
 python utils/find_duplicates.py --data "$TMP_DIR/data/all_data" --leakage \
     --train "$TMP_DIR/data/train" --val "$TMP_DIR/data/val" --test "$TMP_DIR/data/test"
 
-# 8. train fast
+# 8. train fast (с временными путями)
 echo -e "\n[8/12] train fast..."
 python train.py --fast --seed 42 --exp_name test_pipeline \
-    --config configs/config.yaml 2>/dev/null || true
-# Временно: train использует data/train из конфига. Нужно подменить пути.
-# Для теста просто проверяем что чекпоинт создается
+    --train_path "$TMP_DIR/data/train" \
+    --val_path "$TMP_DIR/data/val"
 
 # 9. predict
 echo -e "\n[9/12] predict..."
-if [ -f "checkpoints/best_model.pth" ]; then
-    python predict.py --checkpoint checkpoints/best_model.pth --image "$TMP_DIR/data/val/cat/0.jpg" || true
-fi
+python predict.py --checkpoint checkpoints/best_model.pth --image "$TMP_DIR/data/val/cat/0.jpg"
 
 # 10. TTA
 echo -e "\n[10/12] TTA..."
-if [ -f "checkpoints/best_model.pth" ]; then
-    python tta_predict.py --checkpoint checkpoints/best_model.pth --image "$TMP_DIR/data/val/cat/0.jpg" --tta hflip || true
-fi
+python tta_predict.py --checkpoint checkpoints/best_model.pth --image "$TMP_DIR/data/val/cat/0.jpg" --tta hflip
 
 # 11. ONNX
 echo -e "\n[11/12] ONNX..."
-if [ -f "checkpoints/best_model.pth" ]; then
-    python export_onnx.py --checkpoint checkpoints/best_model.pth --test || true
-fi
+python export_onnx.py --checkpoint checkpoints/best_model.pth --test
 
 # 12. submission
 echo -e "\n[12/12] submission..."
-if [ -f "checkpoints/best_model.pth" ]; then
-    python generate_submission.py --checkpoint checkpoints/best_model.pth --test_folder "$TMP_DIR/data/test" --format label || true
-fi
+python generate_submission.py --checkpoint checkpoints/best_model.pth --test_folder "$TMP_DIR/data/test" --format label
 
 echo -e "\n========================================="
-echo "🎉 ТЕСТ ЗАВЕРШЕН"
+echo "🎉 ВСЕ 12 ТЕСТОВ ПРОЙДЕНЫ!"
 echo "========================================="

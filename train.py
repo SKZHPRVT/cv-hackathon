@@ -43,6 +43,8 @@ def parse_args():
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--fast', action='store_true')
     parser.add_argument('--exp_name', type=str, default=None, help='Имя эксперимента')
+    parser.add_argument('--train_path', type=str, default=None, help='Путь к train (переопределяет конфиг)')
+    parser.add_argument('--val_path', type=str, default=None, help='Путь к val (переопределяет конфиг)')
     return parser.parse_args()
 
 def load_config(config_path):
@@ -162,6 +164,11 @@ def main():
         config['training']['epochs'] = 1
         config['training']['batch_size'] = 8
         print("🚀 Fast mode: 1 epoch, batch_size=8")
+    
+    if args.train_path:
+        config['data']['train_path'] = args.train_path
+    if args.val_path:
+        config['data']['val_path'] = args.val_path
     
     exp_name = args.exp_name or f"{config['model']['name']}_seed{args.seed}"
     image_size = config['training']['image_size']
