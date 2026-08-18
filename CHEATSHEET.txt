@@ -89,6 +89,47 @@ python yolo_train.py --mode predict --model runs/detect/train/weights/best.pt --
 python yolo_train.py --mode export --model runs/detect/train/weights/best.pt
 
 ================================================================================
+HUGGING FACE МОДЕЛИ
+==================
+
+# Проверка установки
+python hf_models.py --mode check
+
+# Список моделей
+python hf_models.py --mode list
+
+# Информация о датасете
+python hf_models.py --mode dataset --dataset cifar10
+
+# Классификация
+python hf_models.py --mode classify --image test.jpg --model google/vit-base-patch16-224
+
+# Zero-shot
+python hf_models.py --mode zero_shot --image test.jpg --labels cat dog car
+
+# Сегментация
+python hf_models.py --mode segment --image test.jpg
+
+# Генерация
+python hf_models.py --mode generate --prompt "a cat"
+
+================================================================================
+ПОИСК ПОХОЖИХ ОБЪЕКТОВ
+==================
+
+# Создать базу эмбеддингов
+python embedding_search.py --mode build --input data/database_images/ --database embeddings.pkl
+
+# Найти похожие
+python embedding_search.py --mode search --query test.jpg --database embeddings.pkl --top_k 5
+
+# Сравнить два изображения
+python embedding_search.py --mode compare --input image1.jpg --image2 image2.jpg
+
+# Поиск с сохранением результатов
+python embedding_search.py --mode search --query test.jpg --database embeddings.pkl --save_results
+
+================================================================================
 ИНФЕРЕНС (КЛАССИФИКАЦИЯ)
 ==================
 
@@ -114,7 +155,7 @@ ONNX КОНВЕРТАЦИЯ
 # Конвертация в ONNX
 python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx
 
-# Конвертация с проверкой
+# Конвертация с проверкой скорости
 python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx --test
 
 # Конвертация с другим размером
@@ -167,10 +208,10 @@ python -c "from ultralytics import YOLO; model = YOLO('yolov8n.pt'); print('YOLO
 ==================
 
 # Проверить синтаксис всех файлов
-python -m py_compile train.py predict.py yolo_train.py tta_predict.py export_onnx.py utils/*.py
+python -m py_compile train.py predict.py yolo_train.py tta_predict.py export_onnx.py embedding_search.py hf_models.py utils/*.py
 
 # Проверить импорты
-python -c "import torch; import timm; import albumentations; import gradio; import ultralytics; print('Все библиотеки OK')"
+python -c "import torch; import timm; import albumentations; import gradio; import ultralytics; import transformers; print('Все библиотеки OK')"
 
 # Проверить данные
 python utils/check_data.py --path data/train
@@ -204,7 +245,10 @@ python train.py --model efficientnet_b3 --epochs 200
 python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
 
 # Сценарий 7: Максимальная скорость
-python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx
+python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx --test
+
+# Сценарий 8: Zero-shot (без обучения)
+python hf_models.py --mode zero_shot --image test.jpg --labels "class1" "class2"
 
 ================================================================================
 ПОЛЕЗНЫЕ КОМАНДЫ
@@ -293,6 +337,10 @@ git stash pop
 # Если ONNX не конвертируется:
 # Попробовать opset_version=11
 # Проверить версию PyTorch
+
+# Если HF модель не скачивается:
+# Проверить интернет
+# Использовать зеркало: export HF_ENDPOINT=https://hf-mirror.com
 
 ================================================================================
 КОНЕЦ ШПАРГАЛКИ

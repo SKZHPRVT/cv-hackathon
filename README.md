@@ -42,6 +42,7 @@ cv_hackathon/
 ├── CHEATSHEET.txt              # Шпаргалка с командами
 ├── PRESENTATION_TEMPLATE.txt   # Шаблон презентации
 ├── HACKATHON_GUIDE.txt         # Руководство по хакатону
+├── APP_GUIDE.txt               # Руководство по веб-интерфейсу
 ├── embedding_search_README.txt # Руководство по поиску объектов
 ├── hf_models_README.txt        # Руководство по HF моделям
 │
@@ -105,8 +106,14 @@ python yolo_train.py --mode predict --model runs/detect/train/weights/best.pt --
 ### 6. Hugging Face модели
 
 ```bash
+# Проверка установки:
+python hf_models.py --mode check
+
 # Список доступных моделей:
 python hf_models.py --mode list
+
+# Информация о датасете:
+python hf_models.py --mode dataset --dataset cifar10
 
 # Классификация:
 python hf_models.py --mode classify --image test.jpg --model google/vit-base-patch16-224
@@ -145,6 +152,9 @@ python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
 
 # Конвертация в ONNX:
 python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx
+
+# Конвертация с проверкой скорости:
+python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx --test
 ```
 
 ### 9. Веб-интерфейс
@@ -167,6 +177,7 @@ python app.py
 - **CHEATSHEET.txt** — быстрые команды для работы
 - **PRESENTATION_TEMPLATE.txt** — шаблон для презентации результатов
 - **HACKATHON_GUIDE.txt** — руководство по хакатону с подводными камнями
+- **APP_GUIDE.txt** — руководство по веб-интерфейсу
 - **embedding_search_README.txt** — руководство по поиску похожих объектов
 - **hf_models_README.txt** — руководство по Hugging Face моделям
 
@@ -228,8 +239,11 @@ python train.py --model resnet18 --epochs 50
 # Обучение детекции
 python yolo_train.py --mode train --data configs/yolo_data.yaml
 
-# Hugging Face
-python hf_models.py --mode list
+# Hugging Face - проверка
+python hf_models.py --mode check
+
+# Hugging Face - датасеты
+python hf_models.py --mode dataset --dataset cifar10
 
 # Поиск похожих
 python embedding_search.py --mode search --query test.jpg --database embeddings.pkl
@@ -240,8 +254,8 @@ python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
 # TTA предсказание
 python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
 
-# ONNX конвертация
-python export_onnx.py --checkpoint checkpoints/best_model.pth
+# ONNX конвертация с проверкой
+python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx --test
 
 # Веб-интерфейс
 python app.py
