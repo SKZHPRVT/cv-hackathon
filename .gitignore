@@ -88,3 +88,10 @@ output/
 results/
 submission/
 predictions/
+
+# Исключения для документации
+!CHEATSHEET.txt
+!MANUAL.txt
+!PRESENTATION_TEMPLATE.txt
+!HACKATHON_GUIDE.txt
+!requirements.txt
