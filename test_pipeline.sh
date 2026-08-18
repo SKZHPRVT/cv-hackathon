@@ -12,7 +12,7 @@ echo "========================================="
 
 # 1. check_env (без YOLO — авто)
 echo -e "\n[1/12] check_env..."
-python check_env.py || { echo "❌ check_env провален"; exit 1; }
+python check_env.py --with-yolo || { echo "❌ check_env провален"; exit 1; }
 
 # 2. Создание данных
 echo -e "\n[2/12] Создание данных..."
@@ -68,7 +68,16 @@ python export_onnx.py --checkpoint checkpoints/best_model.pth --test
 
 # 12. submission
 echo -e "\n[12/13] YOLO test...
-python yolo_train.py --mode predict --model yolov8n.pt --source "$TMP_DIR/data/val/cat/" --conf 0.25 || echo "⚠️ YOLO тест пропущен"
+echo "Проверка YOLO модели..."
+if [ -f "yolov8n.pt" ]; then
+    python yolo_train.py --mode predict --model yolov8n.pt --source "$TMP_DIR/data/val/cat/" --conf 0.25
+    echo "✅ YOLO predict выполнен"
+else
+    echo "⚠️ yolov8n.pt не найден, скачиваю..."
+    python -c 'from ultralytics import YOLO; YOLO("yolov8n.pt")'
+    python yolo_train.py --mode predict --model yolov8n.pt --source "$TMP_DIR/data/val/cat/" --conf 0.25
+    echo "✅ YOLO predict выполнен"
+fi
 
 [13/13] submission..."
 python generate_submission.py --checkpoint checkpoints/best_model.pth --test_folder "$TMP_DIR/data/test" --format label
