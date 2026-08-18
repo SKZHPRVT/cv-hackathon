@@ -88,7 +88,19 @@ def get_tta_transforms(image_size, tta_type='hflip'):
             ]),
             A.Compose([
                 A.Resize(image_size, image_size),
-                A.Rotate(limit=90, p=1.0),
+                A.Rotate(limit=(90, 90), p=1.0),  # Строго 90°
+                A.Normalize(mean=MEAN, std=STD),
+                ToTensorV2(),
+            ]),
+            A.Compose([
+                A.Resize(image_size, image_size),
+                A.Rotate(limit=(180, 180), p=1.0),  # Строго 180°
+                A.Normalize(mean=MEAN, std=STD),
+                ToTensorV2(),
+            ]),
+            A.Compose([
+                A.Resize(image_size, image_size),
+                A.Rotate(limit=(270, 270), p=1.0),  # Строго 270°
                 A.Normalize(mean=MEAN, std=STD),
                 ToTensorV2(),
             ]),

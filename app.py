@@ -35,6 +35,7 @@ from utils.split_data import split_dataset
 MODEL = None
 CLASS_NAMES = None
 IMAGE_SIZE = 224
+LOADED_CHECKPOINT = None  # Путь к загруженной модели
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Кеш HF моделей
@@ -42,7 +43,11 @@ HF_CACHE = {}
 
 def load_model_ui(checkpoint_path):
     """Загрузка модели с правильным препроцессингом из чекпоинта."""
-    global MODEL, CLASS_NAMES, IMAGE_SIZE
+    global MODEL, CLASS_NAMES, IMAGE_SIZE, LOADED_CHECKPOINT
+    
+    # Перезагружаем только если путь изменился
+    if LOADED_CHECKPOINT == checkpoint_path and MODEL is not None:
+        return f"✅ Модель уже загружена: {checkpoint_path}"
     
     try:
         checkpoint = torch.load(checkpoint_path, map_location=DEVICE)
@@ -57,6 +62,7 @@ def load_model_ui(checkpoint_path):
         MODEL.load_state_dict(checkpoint['model_state_dict'])
         MODEL = MODEL.to(DEVICE)
         MODEL.eval()
+        LOADED_CHECKPOINT = checkpoint_path
         
         return f"✅ Модель: {model_name}\nКлассы: {CLASS_NAMES}\nРазмер: {IMAGE_SIZE}px"
     except Exception as e:
@@ -80,7 +86,7 @@ def predict_ui(image, checkpoint_path, top_k=3):
     if image is None:
         return "Загрузите изображение", None
     
-    if MODEL is None:
+    if MODEL is None or LOADED_CHECKPOINT != checkpoint_path:
         result = load_model_ui(checkpoint_path)
         if "❌" in result:
             return result, None
@@ -115,7 +121,7 @@ def predict_batch_ui(folder_path, checkpoint_path):
         return "Выберите папку"
     
     try:
-        if MODEL is None:
+        if MODEL is None or LOADED_CHECKPOINT != checkpoint_path:
             result = load_model_ui(checkpoint_path)
             if "❌" in result:
                 return result
@@ -129,7 +135,9 @@ def predict_batch_ui(folder_path, checkpoint_path):
                 if image is None:
                     continue
                 
-                image_tensor = preprocess_image(image, IMAGE_SIZE).to(DEVICE)
+                # cv2.imread возвращает BGR, preprocess_image ожидает RGB
+                image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                image_tensor = preprocess_image(image_rgb, IMAGE_SIZE).to(DEVICE)
                 
                 with torch.no_grad():
                     outputs = MODEL(image_tensor)
@@ -256,16 +264,16 @@ def get_hf_model(model_name, model_type='classification'):
     if model_type == 'classification':
         from transformers import AutoImageProcessor, AutoModelForImageClassification
         processor = AutoImageProcessor.from_pretrained(model_name)
-        model = AutoModelForImageClassification.from_pretrained(model_name)
+        model = AutoModelForImageClassification.from_pretrained(model_name).to(DEVICE)
         HF_CACHE[cache_key] = (model, processor)
     elif model_type == 'clip':
         from transformers import CLIPProcessor, CLIPModel
-        model = CLIPModel.from_pretrained(model_name)
+        model = CLIPModel.from_pretrained(model_name).to(DEVICE)
         processor = CLIPProcessor.from_pretrained(model_name)
         HF_CACHE[cache_key] = (model, processor)
     elif model_type == 'sam':
         from transformers import SamModel, SamProcessor
-        model = SamModel.from_pretrained(model_name)
+        model = SamModel.from_pretrained(model_name).to(DEVICE)
         processor = SamProcessor.from_pretrained(model_name)
         HF_CACHE[cache_key] = (model, processor)
     elif model_type == 'diffusion':

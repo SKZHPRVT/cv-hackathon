@@ -41,13 +41,13 @@ def get_transforms(image_size=224, is_train=True, augmentation_config=None):
                 # Сначала увеличиваем, потом crop до нужного размера
                 crop_scale = augmentation_config.get('crop_scale', 1.2)
                 larger_size = int(image_size * crop_scale)
-                transforms.append(A.RandomResizedCrop(height=image_size, width=image_size, scale=(0.8, 1.0), p=0.5))
+                transforms.append(A.RandomResizedCrop(size=(image_size, image_size), scale=(0.8, 1.0), p=0.5))
             if augmentation_config.get('brightness_contrast', False):
                 transforms.append(A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5))
             if augmentation_config.get('hue_saturation', False):
                 transforms.append(A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=20, p=0.3))
             if augmentation_config.get('coarse_dropout', False):
-                transforms.append(A.CoarseDropout(max_holes=8, max_height=32, max_width=32, p=0.3))
+                transforms.append(A.CoarseDropout(num_holes_range=(1, 8), hole_height_range=(0.1, 0.25), hole_width_range=(0.1, 0.25), p=0.3))
         
         # Безопасные по умолчанию аугментации (не меняют семантику)
         transforms.extend([

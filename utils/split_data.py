@@ -116,7 +116,15 @@ def split_dataset(source_path, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1, s
     
     for class_name, images in class_images.items():
         n_total = len(images)
-        n_val = max(1, int(n_total * val_ratio))
+        
+        # Вычисляем целевое число val с учетом min_val_per_class
+        target_val = int(n_total * val_ratio)
+        min_val = min(min_val_per_class, n_total - 2)  # Оставляем минимум 1 train и 1 test
+        n_val = max(target_val, min(1, min_val))  # Используем min_val_per_class если нужно
+        
+        # Гарантируем что n_val не превышает n_total - 2
+        n_val = min(n_val, n_total - 2)
+        
         n_test = max(1, int(n_total * test_ratio))
         n_train = n_total - n_val - n_test
         
@@ -162,6 +170,8 @@ if __name__ == "__main__":
     parser.add_argument('--test_ratio', type=float, default=0.1)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--min_val_per_class', type=int, default=3)
+    parser.add_argument('--csv_path', type=str, default=None, help='Путь к CSV с разметкой')
+    parser.add_argument('--group_column', type=str, default=None, help='Колонка для group-aware split')
     
     args = parser.parse_args()
     
@@ -173,4 +183,5 @@ if __name__ == "__main__":
         args.test_ratio /= total_ratio
     
     split_dataset(args.source, args.train_ratio, args.val_ratio, args.test_ratio,
-                 args.seed, min_val_per_class=args.min_val_per_class)
+                 args.seed, min_val_per_class=args.min_val_per_class,
+                 group_column=args.group_column, csv_path=args.csv_path)

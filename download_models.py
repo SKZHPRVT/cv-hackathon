@@ -87,9 +87,20 @@ def download_hf_models():
         except Exception as e:
             print(f"  ⚠️ {model_name}: {e}")
 
-def check_offline():
-    """Проверка offline-режима: реальная загрузка pretrained весов из кеша."""
+def check_offline(strict=False):
+    """Проверка offline-режима: реальная загрузка pretrained весов из кеша.
+    
+    Args:
+        strict: если True, запрещает сетевой доступ
+    """
     print("\n🔍 Проверка offline-режима (pretrained weights)...")
+    
+    if strict:
+        # Запрещаем сетевой доступ
+        os.environ['HF_HUB_OFFLINE'] = '1'
+        os.environ['TRANSFORMERS_OFFLINE'] = '1'
+        os.environ['TORCH_HOME'] = str(MODELS_DIR / 'torch_cache')
+        print("  🔒 Сетевой доступ запрещен (HF_HUB_OFFLINE=1)")
     
     # Проверяем кеш timm с pretrained=True
     import timm
@@ -124,11 +135,12 @@ if __name__ == "__main__":
     parser.add_argument('--hf', action='store_true', help='Скачать HF модели')
     parser.add_argument('--all', action='store_true', help='Скачать все модели')
     parser.add_argument('--check', action='store_true', help='Проверить offline-режим')
+    parser.add_argument('--strict', action='store_true', help='Строгий offline-тест (запрет сети)')
     
     args = parser.parse_args()
     
     if args.check:
-        check_offline()
+        check_offline(strict=args.strict)
         exit(0)
     
     if args.timm or args.all:

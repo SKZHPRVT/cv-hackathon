@@ -3,6 +3,8 @@
 set -e
 
 TMP_DIR=$(mktemp -d)
+CHECKPOINT_DIR="$TMP_DIR/checkpoints"
+mkdir -p "$CHECKPOINT_DIR"
 echo "📁 Временная папка: $TMP_DIR"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
