@@ -212,7 +212,7 @@ def main():
         weight_decay=config['training']['weight_decay']
     )
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=3, verbose=True
+        optimizer, mode='min', factor=0.5, patience=3
     )
     
     scaler = GradScaler() if config['training']['mixed_precision'] and device.type == 'cuda' else None
