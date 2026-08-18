@@ -34,6 +34,7 @@ cv_hackathon/
 ├── tta_predict.py              # Инференс с TTA
 ├── export_onnx.py              # Конвертация в ONNX
 ├── embedding_search.py         # Поиск похожих объектов
+├── hf_models.py                # Hugging Face модели
 ├── app.py                      # Веб-интерфейс (Gradio)
 ├── check_env.py                # Проверка окружения
 │
@@ -42,6 +43,7 @@ cv_hackathon/
 ├── PRESENTATION_TEMPLATE.txt   # Шаблон презентации
 ├── HACKATHON_GUIDE.txt         # Руководство по хакатону
 ├── embedding_search_README.txt # Руководство по поиску объектов
+├── hf_models_README.txt        # Руководство по HF моделям
 │
 ├── requirements.txt            # Зависимости
 ├── .gitignore                  # Игнорирование файлов
@@ -100,7 +102,26 @@ python yolo_train.py --mode train --data configs/yolo_data.yaml --task segment
 python yolo_train.py --mode predict --model runs/detect/train/weights/best.pt --source test.jpg
 ```
 
-### 6. Поиск похожих объектов
+### 6. Hugging Face модели
+
+```bash
+# Список доступных моделей:
+python hf_models.py --mode list
+
+# Классификация:
+python hf_models.py --mode classify --image test.jpg --model google/vit-base-patch16-224
+
+# Zero-shot классификация:
+python hf_models.py --mode zero_shot --image test.jpg --labels cat dog car person
+
+# Сегментация (SAM):
+python hf_models.py --mode segment --image test.jpg
+
+# Генерация:
+python hf_models.py --mode generate --prompt "a cat sitting on a table"
+```
+
+### 7. Поиск похожих объектов
 
 ```bash
 # Создать базу эмбеддингов:
@@ -113,7 +134,7 @@ python embedding_search.py --mode search --query test.jpg --database embeddings.
 python embedding_search.py --mode compare --input image1.jpg --image2 image2.jpg
 ```
 
-### 7. Инференс
+### 8. Инференс
 
 ```bash
 # Обычное предсказание:
@@ -126,12 +147,19 @@ python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
 python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx
 ```
 
-### 8. Веб-интерфейс
+### 9. Веб-интерфейс
 
 ```bash
 python app.py
 # Открыть http://localhost:7860
 ```
+
+Веб-интерфейс включает 5 вкладок:
+- 🔮 Инференс — классификация, батч-обработка
+- 📊 Анализ данных — статистика, аугментации
+- 🔀 Разделение данных — train/val/test
+- 🎓 Обучение — запуск обучения
+- 🤗 Hugging Face — ViT, CLIP, SAM, Stable Diffusion
 
 ## 📚 Документация
 
@@ -140,28 +168,38 @@ python app.py
 - **PRESENTATION_TEMPLATE.txt** — шаблон для презентации результатов
 - **HACKATHON_GUIDE.txt** — руководство по хакатону с подводными камнями
 - **embedding_search_README.txt** — руководство по поиску похожих объектов
+- **hf_models_README.txt** — руководство по Hugging Face моделям
 
 ## 🎯 Поддерживаемые задачи
 
-### 1. Классификация изображений (timm)
-- `resnet18`, `resnet34`, `resnet50` — быстрые и надежные
-- `efficientnet_b0`, `efficientnet_b3` — точные и эффективные
-- `mobilenetv3_large_100` — для мобильных устройств
-- `vit_base_patch16_224` — Vision Transformer
+### 1. Классификация изображений
+- **timm**: resnet18, resnet34, resnet50, efficientnet_b0, efficientnet_b3, mobilenetv3_large_100, vit_base_patch16_224
+- **Hugging Face**: ViT, Swin, ConvNeXT, ResNet
 
 ### 2. Детекция объектов (YOLO)
-- `yolov8n`, `yolov8s`, `yolov8m`, `yolov8l`, `yolov8x`
+- yolov8n, yolov8s, yolov8m, yolov8l, yolov8x
 - Задачи: detect, segment, classify, pose
 
-### 3. Сегментация (YOLO-seg)
-- Выделение пикселей объектов
-- Инстанс-сегментация
+### 3. Сегментация
+- **YOLO-seg**: инстанс-сегментация
+- **SAM**: Segment Anything Model
+- **DETR**: детекция + сегментация
 
-### 4. Распознавание и поиск (Embedding Search)
-- Поиск похожих объектов
+### 4. Распознавание и поиск
+- Поиск похожих объектов (embedding search)
 - Распознавание лиц
 - Re-identification
 - Поиск дубликатов
+
+### 5. Zero-shot классификация (CLIP)
+- Классификация без обучения
+- Распознавание новых классов
+- Текстовая классификация
+
+### 6. Генерация изображений
+- Stable Diffusion
+- Создание синтетических данных
+- Аугментация датасета
 
 ## 📊 Аугментации (Albumentations)
 
@@ -190,6 +228,9 @@ python train.py --model resnet18 --epochs 50
 # Обучение детекции
 python yolo_train.py --mode train --data configs/yolo_data.yaml
 
+# Hugging Face
+python hf_models.py --mode list
+
 # Поиск похожих
 python embedding_search.py --mode search --query test.jpg --database embeddings.pkl
 
@@ -216,6 +257,7 @@ python app.py
 6. **Работайте в команде**: разделите задачи между участниками
 7. **Готовьте демо**: сделайте красивый интерфейс для презентации
 8. **Тестируйте заранее**: проверьте весь пайплайн до хакатона
+9. **Скачайте модели заранее**: HF модели требуют интернет при первом запуске
 
 ## 🔍 Решение проблем
 
@@ -237,6 +279,12 @@ python train.py --model resnet18
 - Добавьте аугментации
 - Увеличьте `weight_decay`
 - Используйте early stopping
+
+### HF модель не загружается
+
+- Проверьте интернет-соединение
+- Скачайте модель заранее
+- Используйте локальный путь
 
 ## 📈 Метрики
 
@@ -262,6 +310,7 @@ python train.py --model resnet18
 3. Скачайте предобученные модели
 4. Изучите документацию
 5. Потренируйтесь на тестовых данных
+6. Скачайте HF модели заранее
 
 ### Во время хакатона
 
