@@ -108,3 +108,9 @@ search_results/
 
 # App guide
 !APP_GUIDE.txt
+
+# Test artifacts
+model.onnx
+model.onnx.data
+submission.csv
+runs/
