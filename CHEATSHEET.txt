@@ -1,0 +1,299 @@
+================================================================================
+                    ШПАРГАЛКА ПО КОМАНДАМ - CV HACKATHON TOOLKIT
+================================================================================
+
+УСТАНОВКА И ЗАПУСК
+==================
+
+# Создание виртуального окружения
+python3 -m venv venv
+
+# Активация (Linux/Mac)
+source venv/bin/activate
+
+# Активация (Windows)
+venv\Scripts\activate
+
+# Установка зависимостей
+pip install -r requirements.txt
+
+# Запуск веб-интерфейса
+python app.py
+
+# Проверка окружения
+python check_env.py
+
+================================================================================
+ПОДГОТОВКА ДАННЫХ
+==================
+
+# Проверить структуру данных
+python utils/check_data.py --path data/train
+
+# Разделить данные (80% train, 10% val, 10% test)
+python utils/split_data.py --source data/all_data
+
+# Разделить с другими пропорциями
+python utils/split_data.py --source data/all_data --train_ratio 0.7 --val_ratio 0.15 --test_ratio 0.15
+
+# Разделить с фиксированным seed
+python utils/split_data.py --source data/all_data --seed 123
+
+================================================================================
+ОБУЧЕНИЕ КЛАССИФИКАЦИИ
+==================
+
+# Быстрый тест (1 эпоха)
+python train.py --fast
+
+# Обычное обучение (из конфига)
+python train.py
+
+# Обучение с конкретной моделью
+python train.py --model resnet18
+python train.py --model resnet34
+python train.py --model resnet50
+python train.py --model efficientnet_b0
+python train.py --model efficientnet_b3
+python train.py --model mobilenetv3_large_100
+
+# Обучение с параметрами
+python train.py --model efficientnet_b0 --epochs 100 --batch_size 64 --lr 0.0001
+
+# Обучение с другим конфигом
+python train.py --config configs/custom_config.yaml
+
+================================================================================
+ОБУЧЕНИЕ YOLO (ДЕТЕКЦИЯ)
+==================
+
+# Обучение детекции
+python yolo_train.py --mode train --data configs/yolo_data.yaml --model n --epochs 50
+
+# Обучение с большей моделью
+python yolo_train.py --mode train --data configs/yolo_data.yaml --model s --epochs 100
+
+# Обучение сегментации
+python yolo_train.py --mode train --data configs/yolo_data.yaml --task segment
+
+# Обучение классификации (YOLO)
+python yolo_train.py --mode train --data configs/yolo_data.yaml --task classify
+
+# Предсказание
+python yolo_train.py --mode predict --model runs/detect/train/weights/best.pt --source test.jpg
+
+# Предсказание на папке
+python yolo_train.py --mode predict --model runs/detect/train/weights/best.pt --source test_folder/
+
+# Экспорт в ONNX
+python yolo_train.py --mode export --model runs/detect/train/weights/best.pt
+
+================================================================================
+ИНФЕРЕНС (КЛАССИФИКАЦИЯ)
+==================
+
+# Одно изображение
+python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+
+# Папка с изображениями
+python predict.py --checkpoint checkpoints/best_model.pth --folder test_images/
+
+# С указанием размера изображения
+python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg --image_size 512
+
+# Загрузка конкретной модели
+python predict.py --checkpoint checkpoints/last_model.pth --image test.jpg
+
+# Предсказание с TTA (точнее)
+python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+
+================================================================================
+ONNX КОНВЕРТАЦИЯ
+==================
+
+# Конвертация в ONNX
+python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx
+
+# Конвертация с проверкой
+python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx --test
+
+# Конвертация с другим размером
+python export_onnx.py --checkpoint checkpoints/best_model.pth --image_size 512
+
+================================================================================
+МОНИТОРИНГ ОБУЧЕНИЯ
+==================
+
+# Смотреть использование GPU
+watch -n 1 nvidia-smi
+
+# Смотреть использование CPU
+htop
+
+# Смотреть логи обучения
+tail -f checkpoints/training.log
+
+# Посмотреть файлы результатов
+ls -la checkpoints/
+
+# Открыть графики обучения
+xdg-open checkpoints/training_history_*.png
+
+# Открыть confusion matrix
+xdg-open checkpoints/confusion_matrix.png
+
+# Посмотреть результаты YOLO
+ls -la runs/detect/train/
+
+# Открыть результаты YOLO
+xdg-open runs/detect/train/results.png
+
+================================================================================
+РАБОТА С МОДЕЛЯМИ
+==================
+
+# Список доступных моделей (timm)
+python -c "import timm; print('\n'.join(timm.list_models('*resnet*')))"
+python -c "import timm; print('\n'.join(timm.list_models('*efficientnet*')))"
+
+# Проверить размер модели
+python -c "import timm; model = timm.create_model('resnet18', pretrained=True); print(sum(p.numel() for p in model.parameters()))"
+
+# Скачать модель YOLO
+python -c "from ultralytics import YOLO; model = YOLO('yolov8n.pt'); print('YOLOv8n скачана')"
+
+================================================================================
+ОТЛАДКА И ПРОВЕРКА
+==================
+
+# Проверить синтаксис всех файлов
+python -m py_compile train.py predict.py yolo_train.py tta_predict.py export_onnx.py utils/*.py
+
+# Проверить импорты
+python -c "import torch; import timm; import albumentations; import gradio; import ultralytics; print('Все библиотеки OK')"
+
+# Проверить данные
+python utils/check_data.py --path data/train
+
+# Проверить GPU
+python -c "import torch; print('CUDA:', torch.cuda.is_available()); print('Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+
+================================================================================
+БЫСТРЫЕ СЦЕНАРИИ
+==================
+
+# Сценарий 1: Бинарная классификация
+python utils/split_data.py --source data/all_data
+python train.py --model resnet18 --epochs 50
+python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+
+# Сценарий 2: Мультикласс (10 классов)
+python train.py --model efficientnet_b0 --epochs 100 --batch_size 64
+
+# Сценарий 3: Мало данных (меньше 100 изображений)
+python train.py --model resnet18 --epochs 200 --lr 0.0001
+
+# Сценарий 4: Быстрый эксперимент
+python train.py --fast && python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+
+# Сценарий 5: Детекция объектов
+python yolo_train.py --mode train --data configs/yolo_data.yaml --model n --epochs 50
+
+# Сценарий 6: Максимальная точность
+python train.py --model efficientnet_b3 --epochs 200
+python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+
+# Сценарий 7: Максимальная скорость
+python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx
+
+================================================================================
+ПОЛЕЗНЫЕ КОМАНДЫ
+==================
+
+# Создать структуру папок
+mkdir -p data/{train,val,test}
+
+# Посмотреть структуру проекта
+tree -L 2
+
+# Посчитать изображения в папке
+find data/train -type f \( -name "*.jpg" -o -name "*.png" \) | wc -l
+
+# Посчитать изображения по классам
+for dir in data/train/*/; do echo "$dir: $(find $dir -type f | wc -l)"; done
+
+# Скопировать модель
+cp checkpoints/best_model.pth backup_model.pth
+
+# Удалить все чекпоинты
+rm checkpoints/*.pth
+
+# Очистить кэш Python
+find . -type d -name "__pycache__" -exec rm -rf {} +
+
+================================================================================
+GIT КОМАНДЫ
+==================
+
+# Инициализация репозитория
+git init
+git add .
+git commit -m "Initial commit"
+
+# Сохранить изменения
+git add .
+git commit -m "Update model training"
+
+# Создать ветку для эксперимента
+git checkout -b experiment_efficientnet
+
+# Вернуться к основной ветке
+git checkout main
+
+# Посмотреть историю
+git log --oneline
+
+# Отменить изменения
+git checkout -- filename
+
+# Загрузить на GitHub
+git push origin main
+
+# Скачать с GitHub
+git pull origin main
+
+================================================================================
+ЭКСТРЕННЫЕ СИТУАЦИИ
+==================
+
+# Если не хватает памяти GPU:
+python train.py --batch_size 8 --image_size 128
+
+# Если обучение зависло:
+# Ctrl+C - остановить
+# Проверить процессы:
+ps aux | grep python
+# Убить процесс:
+kill -9 PID
+
+# Если не работает GPU:
+export CUDA_VISIBLE_DEVICES=0
+# или использовать CPU:
+python train.py --device cpu
+
+# Если потерялись изменения:
+git status
+git diff
+git stash pop
+
+# Если YOLO не скачивает модель:
+# Скачать вручную с https://github.com/ultralytics/assets/releases
+# Положить в папку models/
+
+# Если ONNX не конвертируется:
+# Попробовать opset_version=11
+# Проверить версию PyTorch
+
+================================================================================
+КОНЕЦ ШПАРГАЛКИ
+================================================================================
