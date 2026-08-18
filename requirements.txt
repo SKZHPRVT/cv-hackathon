@@ -35,3 +35,4 @@ diffusers>=0.21.0
 accelerate>=0.20.0
 safetensors>=0.3.0
 imagehash>=4.3.0
+imagehash>=4.3.0
