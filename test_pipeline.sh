@@ -55,11 +55,12 @@ python train.py --fast --seed 42 --exp_name test_pipeline \
 
 # 9. predict
 echo -e "\n[9/12] predict..."
-python predict.py --checkpoint checkpoints/best_model.pth --image "$TMP_DIR/data/val/cat/0.jpg"
+VAL_IMAGE=$(ls "$TMP_DIR/data/val/cat/"*.jpg 2>/dev/null | head -1)
+python predict.py --checkpoint checkpoints/best_model.pth --image "$VAL_IMAGE"
 
 # 10. TTA
 echo -e "\n[10/12] TTA..."
-python tta_predict.py --checkpoint checkpoints/best_model.pth --image "$TMP_DIR/data/val/cat/0.jpg" --tta hflip
+python tta_predict.py --checkpoint checkpoints/best_model.pth --image "$VAL_IMAGE" --tta hflip
 
 # 11. ONNX
 echo -e "\n[11/12] ONNX..."

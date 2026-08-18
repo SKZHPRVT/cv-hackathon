@@ -108,7 +108,7 @@ def validate(model, val_loader, criterion, device, class_names):
             all_targets.extend(targets.cpu().numpy())
     
     metrics = calculate_metrics(all_targets, all_preds, class_names)
-    return running_loss/len(val_loader), metrics['accuracy'], all_preds, all_targets
+    return running_loss/len(val_loader), metrics['accuracy'] * 100, all_preds, all_targets
 
 def save_checkpoint(model, optimizer, epoch, val_acc, class_names, config, 
                     image_size, mean, std, save_path, is_best=False):
