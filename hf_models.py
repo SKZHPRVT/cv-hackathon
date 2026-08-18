@@ -1,16 +1,7 @@
 """
 Поддержка Hugging Face моделей для CV-задач.
-Включает:
-- Классификация (ViT, Swin, ConvNeXT)
-- Zero-shot классификация (CLIP)
-- Сегментация (SAM, DETR)
-- Генерация (Stable Diffusion)
-
-Режимы:
-1. classify - классификация изображений
-2. zero_shot - zero-shot классификация (CLIP)
-3. segment - сегментация (SAM)
-4. generate - генерация изображений
+Включает: классификацию, zero-shot, сегментацию, генерацию.
+Использует datasets и accelerate для оптимизации.
 """
 import torch
 import argparse
@@ -26,42 +17,70 @@ def check_install():
         print(f"✅ Transformers {transformers.__version__}")
     except ImportError:
         print("❌ Transformers не установлен")
-        print("Установите: pip install transformers")
         return False
     
     try:
         import datasets
         print(f"✅ Datasets {datasets.__version__}")
     except ImportError:
-        print("⚠️ Datasets не установлен (необязательно)")
+        print("⚠️ Datasets не установлен")
+    
+    try:
+        import accelerate
+        print(f"✅ Accelerate {accelerate.__version__}")
+    except ImportError:
+        print("⚠️ Accelerate не установлен")
+    
+    try:
+        import safetensors
+        print(f"✅ Safetensors {safetensors.__version__}")
+    except ImportError:
+        print("⚠️ Safetensors не установлен")
     
     return True
 
+def load_dataset_info(dataset_name):
+    """Загрузка информации о датасете через datasets"""
+    try:
+        from datasets import load_dataset
+    except ImportError:
+        print("❌ Установите: pip install datasets")
+        return
+    
+    print(f"📦 Загрузка датасета {dataset_name}...")
+    
+    dataset = load_dataset(dataset_name, split='train')
+    
+    print(f"✅ Датасет загружен")
+    print(f"📊 Размер: {len(dataset)} записей")
+    print(f"📋 Колонки: {dataset.column_names}")
+    
+    # Показываем пример
+    print(f"\n📝 Пример:")
+    example = dataset[0]
+    for key, value in example.items():
+        if isinstance(value, (str, int, float)):
+            print(f"  {key}: {value}")
+        elif isinstance(value, Image.Image):
+            print(f"  {key}: <Image {value.size}>")
+
 def classify_image(image_path, model_name='google/vit-base-patch16-224'):
     """Классификация изображения через Hugging Face"""
-    try:
-        from transformers import ViTImageProcessor, ViTForImageClassification
-    except ImportError:
-        print("❌ Установите: pip install transformers")
-        return
+    from transformers import ViTImageProcessor, ViTForImageClassification
     
     print(f"📦 Загрузка модели {model_name}...")
     
-    # Загружаем модель
     processor = ViTImageProcessor.from_pretrained(model_name)
     model = ViTForImageClassification.from_pretrained(model_name)
     
-    # Загружаем изображение
     image = Image.open(image_path)
     inputs = processor(images=image, return_tensors="pt")
     
-    # Инференс
     with torch.no_grad():
         outputs = model(**inputs)
         logits = outputs.logits
         probs = torch.nn.functional.softmax(logits, dim=1)
     
-    # Топ-5 предсказаний
     top_probs, top_indices = torch.topk(probs, 5)
     
     print(f"\n📸 {image_path}")
@@ -72,29 +91,17 @@ def classify_image(image_path, model_name='google/vit-base-patch16-224'):
 
 def zero_shot_classify(image_path, labels=['cat', 'dog', 'car', 'person']):
     """Zero-shot классификация через CLIP"""
-    try:
-        from transformers import CLIPProcessor, CLIPModel
-    except ImportError:
-        print("❌ Установите: pip install transformers")
-        return
+    from transformers import CLIPProcessor, CLIPModel
     
     print("📦 Загрузка CLIP модели...")
     
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
     
-    # Загружаем изображение
     image = Image.open(image_path)
     
-    # Подготавливаем inputs
-    inputs = processor(
-        text=labels,
-        images=image,
-        return_tensors="pt",
-        padding=True
-    )
+    inputs = processor(text=labels, images=image, return_tensors="pt", padding=True)
     
-    # Инференс
     with torch.no_grad():
         outputs = model(**inputs)
         logits_per_image = outputs.logits_per_image
@@ -107,24 +114,16 @@ def zero_shot_classify(image_path, labels=['cat', 'dog', 'car', 'person']):
 
 def segment_image(image_path, model_name='facebook/sam-vit-base'):
     """Сегментация через SAM"""
-    try:
-        from transformers import SamModel, SamProcessor
-    except ImportError:
-        print("❌ Установите: pip install transformers")
-        return
+    from transformers import SamModel, SamProcessor
     
     print(f"📦 Загрузка SAM модели {model_name}...")
     
     model = SamModel.from_pretrained(model_name)
     processor = SamProcessor.from_pretrained(model_name)
     
-    # Загружаем изображение
     image = Image.open(image_path)
-    
-    # Подготавливаем inputs
     inputs = processor(image, return_tensors="pt")
     
-    # Инференс
     with torch.no_grad():
         outputs = model(**inputs)
     
@@ -132,7 +131,6 @@ def segment_image(image_path, model_name='facebook/sam-vit-base'):
     print(f"✅ Сегментация выполнена")
     print(f"📊 Размер масок: {outputs.pred_masks.shape}")
     
-    # Сохраняем маску
     mask = outputs.pred_masks[0, 0].cpu().numpy()
     mask = (mask > 0).astype(np.uint8) * 255
     
@@ -142,17 +140,14 @@ def segment_image(image_path, model_name='facebook/sam-vit-base'):
 
 def generate_image(prompt='a cat sitting on a table', output='generated.png'):
     """Генерация изображения через Stable Diffusion"""
-    try:
-        from diffusers import StableDiffusionPipeline
-    except ImportError:
-        print("❌ Установите: pip install diffusers")
-        return
+    from diffusers import StableDiffusionPipeline
     
     print(f"📦 Загрузка Stable Diffusion...")
     
     pipe = StableDiffusionPipeline.from_pretrained(
         "runwayml/stable-diffusion-v1-5",
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+        use_safetensors=True
     )
     
     if torch.cuda.is_available():
@@ -166,7 +161,7 @@ def generate_image(prompt='a cat sitting on a table', output='generated.png'):
     print(f"✅ Изображение сохранено в {output}")
 
 def list_available_models():
-    """Список популярных HF моделей для CV"""
+    """Список популярных HF моделей"""
     models = {
         'Классификация': [
             'google/vit-base-patch16-224',
@@ -189,27 +184,38 @@ def list_available_models():
         ],
     }
     
-    print("\n📚 Доступные HF модели для CV:")
+    print("\n📚 Доступные HF модели:")
     print("="*60)
     for category, models_list in models.items():
         print(f"\n{category}:")
         for model in models_list:
             print(f"  - {model}")
+    
+    print("\n📦 Популярные датасеты:")
+    print("  - cifar10")
+    print("  - mnist")
+    print("  - fashion_mnist")
+    print("  - imagenet-1k")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Hugging Face модели для CV')
-    parser.add_argument('--mode', choices=['classify', 'zero_shot', 'segment', 'generate', 'list'],
+    parser.add_argument('--mode', choices=['classify', 'zero_shot', 'segment', 'generate', 'list', 'dataset', 'check'],
                        required=True, help='Режим работы')
     parser.add_argument('--image', help='Путь к изображению')
     parser.add_argument('--model', help='Название модели')
     parser.add_argument('--labels', nargs='+', help='Метки для zero-shot')
     parser.add_argument('--prompt', help='Промпт для генерации')
     parser.add_argument('--output', default='output.png', help='Выходной файл')
+    parser.add_argument('--dataset', help='Название датасета')
     
     args = parser.parse_args()
     
-    if args.mode == 'list':
+    if args.mode == 'check':
+        check_install()
+    elif args.mode == 'list':
         list_available_models()
+    elif args.mode == 'dataset':
+        load_dataset_info(args.dataset)
     elif args.mode == 'classify':
         classify_image(args.image, args.model or 'google/vit-base-patch16-224')
     elif args.mode == 'zero_shot':
