@@ -88,45 +88,77 @@ def download_hf_models():
             print(f"  ⚠️ {model_name}: {e}")
 
 def check_offline(strict=False):
-    """Проверка offline-режима: реальная загрузка pretrained весов из кеша.
+    """Проверка offline-режима. Возвращает True если всё загружается из кеша.
     
     Args:
         strict: если True, запрещает сетевой доступ
+    Returns:
+        bool: True если все модели загрузились offline
     """
     print("\n🔍 Проверка offline-режима (pretrained weights)...")
+    
+    all_ok = True
     
     if strict:
         # Запрещаем сетевой доступ
         os.environ['HF_HUB_OFFLINE'] = '1'
         os.environ['TRANSFORMERS_OFFLINE'] = '1'
+        os.environ['HF_HUB_DISABLE_SYMLINKS'] = '1'
         os.environ['TORCH_HOME'] = str(MODELS_DIR / 'torch_cache')
-        print("  🔒 Сетевой доступ запрещен (HF_HUB_OFFLINE=1)")
+        print("  🔒 Сетевой доступ запрещен (HF_HUB_OFFLINE=1, TRANSFORMERS_OFFLINE=1)")
     
-    # Проверяем кеш timm с pretrained=True
+    # Проверяем timm модели
     import timm
     for model_name in ['resnet18', 'efficientnet_b0']:
         try:
-            # Пробуем загрузить С pretrained весами (должно работать из кеша)
             model = timm.create_model(model_name, pretrained=True)
             print(f"  ✅ {model_name}: pretrained загружается")
         except Exception as e:
-            print(f"  ⚠️ {model_name}: pretrained НЕ загружается ({e})")
+            print(f"  ❌ {model_name}: pretrained НЕ загружается ({e})")
+            all_ok = False
     
-    # Проверяем HF кеш
-    hf_cache = Path.home() / '.cache' / 'huggingface'
-    if hf_cache.exists():
-        cache_size = sum(f.stat().st_size for f in hf_cache.rglob('*') if f.is_file())
-        print(f"  ✅ HF кеш: {cache_size / 1e9:.1f} GB")
-    else:
-        print(f"  ⚠️ HF кеш не найден")
+    # Проверяем HF модели с local_files_only=True
+    try:
+        from transformers import AutoModelForImageClassification, CLIPModel, SamModel
+        
+        hf_models_to_check = [
+            ('google/vit-base-patch16-224', AutoModelForImageClassification),
+            ('openai/clip-vit-base-patch32', CLIPModel),
+            ('facebook/sam-vit-base', SamModel),
+        ]
+        
+        for model_name, model_class in hf_models_to_check:
+            try:
+                model = model_class.from_pretrained(model_name, local_files_only=True)
+                print(f"  ✅ {model_name}: загружается offline")
+            except Exception as e:
+                print(f"  ❌ {model_name}: НЕ загружается offline ({type(e).__name__}: {str(e)[:80]})")
+                all_ok = False
+    except ImportError:
+        print("  ⚠️ Transformers не установлен, пропускаю HF проверку")
     
     # Проверяем YOLO
     yolo_cache = Path.home() / '.cache' / 'ultralytics'
     if yolo_cache.exists():
         yolo_models = list(yolo_cache.glob('*.pt'))
-        print(f"  ✅ YOLO кеш: {len(yolo_models)} моделей")
+        if yolo_models:
+            print(f"  ✅ YOLO кеш: {len(yolo_models)} моделей")
+        else:
+            print(f"  ⚠️ YOLO кеш пуст")
+            if strict:
+                all_ok = False
     else:
         print(f"  ⚠️ YOLO кеш не найден")
+        if strict:
+            all_ok = False
+    
+    if all_ok:
+        print("\n✅ OFFLINE РЕЖИМ ПОЛНОСТЬЮ ГОТОВ")
+    else:
+        print("\n❌ ЕСТЬ ПРОБЛЕМЫ С OFFLINE-РЕЖИМОМ")
+        print("Запустите: python download_models.py --all")
+    
+    return all_ok
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Скачивание моделей для offline-режима')
@@ -140,8 +172,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.check:
-        check_offline(strict=args.strict)
-        exit(0)
+        result = check_offline(strict=args.strict)
+        exit(0 if result else 1)
     
     if args.timm or args.all:
         download_timm_models()

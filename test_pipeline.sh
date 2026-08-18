@@ -52,21 +52,22 @@ python utils/find_duplicates.py --data "$TMP_DIR/data/all_data" --leakage \
 # 8. train fast
 echo -e "\n[8/13] train fast..."
 python train.py --fast --seed 42 --exp_name test_pipeline \
+    --checkpoint_dir "$CHECKPOINT_DIR" \
     --train_path "$TMP_DIR/data/train" \
     --val_path "$TMP_DIR/data/val"
 
 # 9. predict
 echo -e "\n[9/13] predict..."
 VAL_IMAGE=$(ls "$TMP_DIR/data/val/cat/"*.jpg 2>/dev/null | head -1)
-python predict.py --checkpoint checkpoints/best_model.pth --image "$VAL_IMAGE"
+python predict.py --checkpoint "$CHECKPOINT_DIR/best_model.pth" --image "$VAL_IMAGE"
 
 # 10. TTA
 echo -e "\n[10/13] TTA..."
-python tta_predict.py --checkpoint checkpoints/best_model.pth --image "$VAL_IMAGE" --tta hflip
+python tta_predict.py --checkpoint "$CHECKPOINT_DIR/best_model.pth" --image "$VAL_IMAGE" --tta hflip
 
 # 11. ONNX
 echo -e "\n[11/13] ONNX..."
-python export_onnx.py --checkpoint checkpoints/best_model.pth --test
+python export_onnx.py --checkpoint "$CHECKPOINT_DIR/best_model.pth" --test
 
 # 12. YOLO test
 echo -e "\n[12/13] YOLO test..."
@@ -81,7 +82,7 @@ echo "✅ YOLO predict выполнен"
 
 # 13. submission
 echo -e "\n[13/13] submission..."
-python generate_submission.py --checkpoint checkpoints/best_model.pth --test_folder "$TMP_DIR/data/test" --format label
+python generate_submission.py --checkpoint "$CHECKPOINT_DIR/best_model.pth" --test_folder "$TMP_DIR/data/test" --format label
 
 echo -e "\n========================================="
 echo "🎉 ВСЕ 13 ТЕСТОВ ПРОЙДЕНЫ!"

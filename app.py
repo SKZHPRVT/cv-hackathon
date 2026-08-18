@@ -298,6 +298,7 @@ def hf_classify(image, model_name):
         model, processor = get_hf_model(model_name, 'classification')
         image_pil = Image.fromarray(image)  # Gradio уже отдает RGB
         inputs = processor(images=image_pil, return_tensors="pt")
+        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         
         with torch.no_grad():
             outputs = model(**inputs)
@@ -334,6 +335,7 @@ def hf_zero_shot(image, labels_text):
         image_pil = Image.fromarray(image)  # Gradio уже отдает RGB
         
         inputs = processor(text=labels, images=image_pil, return_tensors="pt", padding=True)
+        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         
         with torch.no_grad():
             outputs = model(**inputs)
@@ -363,6 +365,7 @@ def hf_segment(image):
         model, processor = get_hf_model("facebook/sam-vit-base", 'sam')
         image_pil = Image.fromarray(image)  # Gradio уже отдает RGB
         inputs = processor(image_pil, return_tensors="pt")
+        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         
         with torch.no_grad():
             outputs = model(**inputs)

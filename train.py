@@ -45,6 +45,7 @@ def parse_args():
     parser.add_argument('--exp_name', type=str, default=None, help='Имя эксперимента')
     parser.add_argument('--train_path', type=str, default=None, help='Путь к train (переопределяет конфиг)')
     parser.add_argument('--val_path', type=str, default=None, help='Путь к val (переопределяет конфиг)')
+    parser.add_argument('--checkpoint_dir', type=str, default=None, help='Директория для чекпоинтов')
     return parser.parse_args()
 
 def load_config(config_path):
@@ -169,6 +170,8 @@ def main():
         config['data']['train_path'] = args.train_path
     if args.val_path:
         config['data']['val_path'] = args.val_path
+    if args.checkpoint_dir:
+        config['logging']['save_dir'] = args.checkpoint_dir
     
     exp_name = args.exp_name or f"{config['model']['name']}_seed{args.seed}"
     image_size = config['training']['image_size']

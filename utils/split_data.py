@@ -119,9 +119,10 @@ def split_dataset(source_path, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1, s
         
         # Вычисляем целевое число val с учетом min_val_per_class
         target_val = int(n_total * val_ratio)
-        min_val = min(min_val_per_class, n_total - 2)  # Оставляем минимум 1 train и 1 test
-        n_val = max(target_val, min(1, min_val))  # Используем min_val_per_class если нужно
-        
+        # min_val ограничен доступным количеством (оставляем 1 train и 1 test)
+        min_val = min(min_val_per_class, max(1, n_total - 2))
+        # Берем максимум из целевого и минимального
+        n_val = max(target_val, min_val)
         # Гарантируем что n_val не превышает n_total - 2
         n_val = min(n_val, n_total - 2)
         
