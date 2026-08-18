@@ -1,0 +1,90 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Models and checkpoints
+checkpoints/
+*.pth
+*.pt
+*.onnx
+*.engine
+*.trt
+*.mlmodel
+*.h5
+*.hdf5
+*.pb
+*.tflite
+*.ckpt
+*.safetensors
+*.bin
+
+# Data
+data/
+datasets/
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tif
+*.tiff
+*.csv
+*.json
+*.xml
+*.txt
+*.tar
+*.tar.gz
+*.zip
+
+# Logs
+logs/
+*.log
+wandb/
+runs/
+tensorboard/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS
+__MACOSX/
+*.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# PyTorch
+*.pth.tar
+*.pt.tar
+
+# Compressed files
+*.rar
+*.7z
+
+# Output
+output/
+results/
+submission/
+predictions/
