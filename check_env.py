@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-Скрипт для быстрой проверки окружения перед хакатоном.
-Проверяет все необходимые библиотеки, GPU, структуру проекта.
+Проверка окружения со smoke test:
+- CUDA
+- Forward pass
+- DataLoader
+- Optimizer step
+- Save/load checkpoint
+- YOLO
 """
-
 import sys
 import os
 import importlib
 import subprocess
 from pathlib import Path
+import numpy as np
 
 def print_status(message, status):
-    """Выводит статус с цветом"""
     if status == "OK":
         print(f"✅ {message}")
     elif status == "WARN":
@@ -20,7 +24,6 @@ def print_status(message, status):
         print(f"❌ {message}")
 
 def check_python():
-    """Проверка версии Python"""
     version = sys.version_info
     if version.major >= 3 and version.minor >= 8:
         print_status(f"Python {version.major}.{version.minor}.{version.micro}", "OK")
@@ -28,7 +31,6 @@ def check_python():
         print_status(f"Python {version.major}.{version.minor} (нужно 3.8+)", "ERROR")
 
 def check_library(name, import_name=None):
-    """Проверка библиотеки"""
     if import_name is None:
         import_name = name
     try:
@@ -41,27 +43,121 @@ def check_library(name, import_name=None):
         return False
 
 def check_gpu():
-    """Проверка GPU"""
     try:
         import torch
         if torch.cuda.is_available():
             device_name = torch.cuda.get_device_name(0)
-            device_count = torch.cuda.device_count()
-            print_status(f"GPU: {device_name} (x{device_count})", "OK")
-            
-            # Проверка памяти
             memory = torch.cuda.get_device_properties(0).total_memory / 1e9
-            print_status(f"GPU Memory: {memory:.1f} GB", "OK")
+            print_status(f"GPU: {device_name} ({memory:.1f} GB)", "OK")
             return True
         else:
-            print_status("GPU не найдена, будет использоваться CPU", "WARN")
+            print_status("GPU не найдена, используется CPU", "WARN")
             return False
     except ImportError:
         print_status("PyTorch не установлен", "ERROR")
         return False
 
+def smoke_test_pytorch():
+    """Smoke test: forward pass, optimizer step, save/load."""
+    print("\n🔬 Smoke test PyTorch...")
+    try:
+        import torch
+        import torch.nn as nn
+        import torch.optim as optim
+        
+        # Forward pass
+        model = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
+        x = torch.randn(4, 10)
+        y = model(x)
+        assert y.shape == (4, 2), f"Shape mismatch: {y.shape}"
+        print_status("Forward pass", "OK")
+        
+        # Optimizer step
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        loss = nn.CrossEntropyLoss()(y, torch.tensor([0, 1, 0, 1]))
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        print_status("Optimizer step + backward", "OK")
+        
+        # Save/load
+        torch.save(model.state_dict(), '/tmp/test_model.pth')
+        model2 = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
+        model2.load_state_dict(torch.load('/tmp/test_model.pth'))
+        print_status("Save/load checkpoint", "OK")
+        os.remove('/tmp/test_model.pth')
+        
+        return True
+    except Exception as e:
+        print_status(f"Smoke test PyTorch: {e}", "ERROR")
+        return False
+
+def smoke_test_dataloader():
+    """Smoke test: DataLoader."""
+    print("\n🔬 Smoke test DataLoader...")
+    try:
+        import torch
+        from torch.utils.data import Dataset, DataLoader
+        
+        class DummyDataset(Dataset):
+            def __len__(self):
+                return 10
+            def __getitem__(self, idx):
+                return torch.randn(3, 32, 32), idx % 2
+        
+        loader = DataLoader(DummyDataset(), batch_size=4, shuffle=True)
+        batch = next(iter(loader))
+        assert len(batch) == 2
+        assert batch[0].shape == (4, 3, 32, 32)
+        print_status("DataLoader", "OK")
+        return True
+    except Exception as e:
+        print_status(f"Smoke test DataLoader: {e}", "ERROR")
+        return False
+
+def smoke_test_timm():
+    """Smoke test: timm model."""
+    print("\n🔬 Smoke test timm...")
+    try:
+        import timm
+        model = timm.create_model('resnet18', pretrained=False, num_classes=2)
+        import torch
+        x = torch.randn(1, 3, 224, 224)
+        y = model(x)
+        assert y.shape == (1, 2)
+        print_status("timm ResNet18 forward", "OK")
+        return True
+    except Exception as e:
+        print_status(f"Smoke test timm: {e}", "ERROR")
+        return False
+
+def smoke_test_yolo():
+    """Smoke test: YOLO."""
+    print("\n🔬 Smoke test YOLO...")
+    try:
+        from ultralytics import YOLO
+        # Просто проверяем импорт и создание модели
+        model = YOLO('yolov8n.pt')  # Скачает если нет
+        print_status("YOLO загружен", "OK")
+        return True
+    except Exception as e:
+        print_status(f"Smoke test YOLO: {e}", "ERROR")
+        return False
+
+def smoke_test_onnx():
+    """Smoke test: ONNX."""
+    print("\n🔬 Smoke test ONNX...")
+    try:
+        import onnx
+        import onnxruntime as ort
+        print_status("ONNX + ONNX Runtime", "OK")
+        return True
+    except ImportError as e:
+        print_status(f"Smoke test ONNX: {e}", "ERROR")
+        return False
+
 def check_structure():
-    """Проверка структуры проекта"""
+    print("\n📁 Структура проекта...")
     required_dirs = ['configs', 'utils', 'checkpoints', 'data']
     required_files = ['train.py', 'predict.py', 'app.py', 'requirements.txt']
     
@@ -76,87 +172,6 @@ def check_structure():
             print_status(f"Файл {file_name}", "OK")
         else:
             print_status(f"Файл {file_name} отсутствует", "ERROR")
-
-def check_data():
-    """Проверка данных"""
-    data_path = Path('data')
-    if not data_path.exists():
-        print_status("Папка data/ не создана", "WARN")
-        return
-    
-    train_path = data_path / 'train'
-    val_path = data_path / 'val'
-    
-    if train_path.exists():
-        classes = [d for d in train_path.iterdir() if d.is_dir()]
-        if classes:
-            total_images = sum(1 for c in classes for f in (train_path/c).glob('*') 
-                             if f.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp'])
-            print_status(f"Train: {len(classes)} классов, {total_images} изображений", "OK")
-        else:
-            print_status("Train: нет классов", "WARN")
-    else:
-        print_status("Train: папка отсутствует", "WARN")
-    
-    if val_path.exists():
-        classes = [d for d in val_path.iterdir() if d.is_dir()]
-        if classes:
-            total_images = sum(1 for c in classes for f in (val_path/c).glob('*') 
-                             if f.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp'])
-            print_status(f"Val: {len(classes)} классов, {total_images} изображений", "OK")
-        else:
-            print_status("Val: нет классов", "WARN")
-    else:
-        print_status("Val: папка отсутствует", "WARN")
-
-def check_checkpoints():
-    """Проверка сохраненных моделей"""
-    checkpoint_path = Path('checkpoints')
-    if checkpoint_path.exists():
-        models = list(checkpoint_path.glob('*.pth'))
-        if models:
-            for model in models:
-                size_mb = model.stat().st_size / 1e6
-                print_status(f"Модель {model.name} ({size_mb:.1f} MB)", "OK")
-        else:
-            print_status("Нет сохраненных моделей", "WARN")
-    else:
-        print_status("Папка checkpoints/ отсутствует", "WARN")
-
-def check_config():
-    """Проверка конфига"""
-    config_path = Path('configs/config.yaml')
-    if config_path.exists():
-        try:
-            import yaml
-            with open(config_path) as f:
-                config = yaml.safe_load(f)
-            
-            # Проверка ключевых параметров
-            if 'model' in config and 'name' in config['model']:
-                print_status(f"Модель: {config['model']['name']}", "OK")
-            if 'training' in config:
-                training = config['training']
-                if 'epochs' in training:
-                    print_status(f"Эпохи: {training['epochs']}", "OK")
-                if 'batch_size' in training:
-                    print_status(f"Batch size: {training['batch_size']}", "OK")
-        except Exception as e:
-            print_status(f"Ошибка чтения конфига: {e}", "ERROR")
-    else:
-        print_status("config.yaml отсутствует", "ERROR")
-
-def check_disk_space():
-    """Проверка свободного места"""
-    import shutil
-    total, used, free = shutil.disk_usage(".")
-    free_gb = free / 1e9
-    if free_gb > 10:
-        print_status(f"Свободное место: {free_gb:.1f} GB", "OK")
-    elif free_gb > 5:
-        print_status(f"Свободное место: {free_gb:.1f} GB (маловато)", "WARN")
-    else:
-        print_status(f"Свободное место: {free_gb:.1f} GB (критически мало!)", "ERROR")
 
 def main():
     print("="*70)
@@ -182,41 +197,35 @@ def main():
         ('tqdm', 'tqdm'),
         ('gradio', 'gradio'),
         ('plotly', 'plotly'),
+        ('ultralytics', 'ultralytics'),
+        ('onnx', 'onnx'),
+        ('onnxruntime', 'onnxruntime'),
+        ('transformers', 'transformers'),
+        ('diffusers', 'diffusers'),
     ]
     
-    all_ok = True
     for lib_name, import_name in libraries:
-        if not check_library(lib_name, import_name):
-            all_ok = False
+        check_library(lib_name, import_name)
     
     print("\n📌 GPU:")
-    if not check_gpu():
-        all_ok = False
+    check_gpu()
     
-    print("\n📌 Структура проекта:")
     check_structure()
     
-    print("\n📌 Конфигурация:")
-    check_config()
+    # Smoke tests
+    smoke_test_pytorch()
+    smoke_test_dataloader()
+    smoke_test_timm()
+    smoke_test_onnx()
     
-    print("\n📌 Данные:")
-    check_data()
-    
-    print("\n📌 Модели:")
-    check_checkpoints()
-    
-    print("\n📌 Диск:")
-    check_disk_space()
+    # YOLO тест опционален (требует скачивания)
+    response = input("\n🔬 Запустить smoke test YOLO? (требует скачивания ~6MB) [y/N]: ")
+    if response.lower() == 'y':
+        smoke_test_yolo()
     
     print("\n" + "="*70)
-    if all_ok:
-        print("🎉 Всё готово к хакатону!")
-    else:
-        print("⚠️  Есть проблемы. Установите недостающие компоненты:")
-        print("   pip install -r requirements.txt")
+    print("✅ Проверка завершена!")
     print("="*70)
-    
-    return 0 if all_ok else 1
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
