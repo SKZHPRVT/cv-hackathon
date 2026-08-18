@@ -45,13 +45,13 @@ def test_equivalence(pytorch_model, onnx_path, image_size=224, tolerance=1e-4):
     
     session = ort.InferenceSession(onnx_path)
     
-    # Тестовые данные
+    # Тестовые данные (с batch dimension)
     np.random.seed(42)
-    test_input = np.random.randn(3, 3, image_size, image_size).astype(np.float32)
+    test_input = np.random.randn(1, 3, image_size, image_size).astype(np.float32)
     
     # PyTorch вывод
     with torch.no_grad():
-        torch_input = torch.from_numpy(test_input).unsqueeze(0)
+        torch_input = torch.from_numpy(test_input)
         torch_output = pytorch_model(torch_input).numpy()
     
     # ONNX вывод

@@ -1,35 +1,44 @@
 """
-Скрипт для обучения YOLO на хакатоне.
-Поддерживает детекцию, сегментацию, классификацию.
+YOLO обучение/инференс/экспорт.
+CUDA определяется через PyTorch, модель — произвольный путь или размер.
 """
 from ultralytics import YOLO
 import argparse
-import os
+import torch
 
-def train_yolo(data_yaml, model_size='n', epochs=50, imgsz=640, task='detect'):
-    """
-    Обучение YOLO модели.
+def get_device():
+    """Определение устройства через PyTorch."""
+    if torch.cuda.is_available():
+        return 'cuda'
+    return 'cpu'
+
+def train_yolo(data_yaml, model='yolov8n.pt', epochs=50, imgsz=640, task='detect'):
+    """Обучение YOLO.
     
     Args:
-        data_yaml: путь к YAML файлу с данными
-        model_size: размер модели (n, s, m, l, x)
+        data_yaml: путь к YAML с данными
+        model: путь к .pt файлу ИЛИ размер (n/s/m/l/x)
         epochs: количество эпох
         imgsz: размер изображения
-        task: задача (detect, segment, classify, pose)
+        task: detect/segment/classify/pose
     """
-    # Создаем имя модели
-    model_name = f'yolov8{model_size}.pt'
+    # Если передали размер (n/s/m/l/x), создаем имя модели
+    if model in ['n', 's', 'm', 'l', 'x']:
+        model_name = f'yolov8{model}.pt'
+    else:
+        model_name = model  # произвольный путь к .pt файлу
     
-    # Загружаем предобученную модель
-    model = YOLO(model_name)
+    print(f"📦 Модель: {model_name}")
+    print(f"🔧 Device: {get_device()}")
     
-    # Обучаем
-    results = model.train(
+    yolo_model = YOLO(model_name)
+    
+    results = yolo_model.train(
         data=data_yaml,
         epochs=epochs,
         imgsz=imgsz,
         task=task,
-        device='cuda' if os.system('nvidia-smi') == 0 else 'cpu',
+        device=get_device(),
         patience=10,
         save=True,
         plots=True,
@@ -38,28 +47,29 @@ def train_yolo(data_yaml, model_size='n', epochs=50, imgsz=640, task='detect'):
     return results
 
 def predict_yolo(model_path, source, conf=0.25):
-    """Инференс YOLO модели."""
+    """Инференс YOLO."""
     model = YOLO(model_path)
     results = model.predict(
         source=source,
         conf=conf,
         save=True,
-        show=False,
+        device=get_device(),
     )
     return results
 
 def export_yolo(model_path, format='onnx'):
-    """Экспорт модели в ONNX."""
+    """Экспорт YOLO."""
     model = YOLO(model_path)
     model.export(format=format)
-    print(f"✅ Модель экспортирована в {format}")
+    print(f"✅ Экспортировано в {format}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='YOLO Training for Hackathon')
+    parser = argparse.ArgumentParser(description='YOLO для хакатона')
     parser.add_argument('--mode', choices=['train', 'predict', 'export'], required=True)
-    parser.add_argument('--data', help='Path to data.yaml')
-    parser.add_argument('--model', help='Path to model or size (n, s, m, l, x)')
-    parser.add_argument('--source', help='Path to image/folder for prediction')
+    parser.add_argument('--data', help='Путь к data.yaml')
+    parser.add_argument('--model', default='yolov8n.pt', 
+                       help='Размер (n/s/m/l/x) или путь к .pt файлу')
+    parser.add_argument('--source', help='Изображение или папка')
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--imgsz', type=int, default=640)
     parser.add_argument('--task', default='detect', choices=['detect', 'segment', 'classify', 'pose'])
@@ -68,7 +78,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.mode == 'train':
-        train_yolo(args.data, args.model or 'n', args.epochs, args.imgsz, args.task)
+        train_yolo(args.data, args.model, args.epochs, args.imgsz, args.task)
     elif args.mode == 'predict':
         predict_yolo(args.model, args.source, args.conf)
     elif args.mode == 'export':

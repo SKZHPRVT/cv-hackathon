@@ -38,7 +38,10 @@ def get_transforms(image_size=224, is_train=True, augmentation_config=None):
             if augmentation_config.get('random_rotate', False):
                 transforms.append(A.Rotate(limit=augmentation_config.get('rotate_limit', 15), p=0.5))
             if augmentation_config.get('random_crop', False):
-                transforms.append(A.RandomCrop(height=image_size, width=image_size, p=0.3))
+                # Сначала увеличиваем, потом crop до нужного размера
+                crop_scale = augmentation_config.get('crop_scale', 1.2)
+                larger_size = int(image_size * crop_scale)
+                transforms.append(A.RandomResizedCrop(height=image_size, width=image_size, scale=(0.8, 1.0), p=0.5))
             if augmentation_config.get('brightness_contrast', False):
                 transforms.append(A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5))
             if augmentation_config.get('hue_saturation', False):

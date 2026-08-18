@@ -88,13 +88,58 @@ def generate_classification_submission(checkpoint_path, test_folder, output_file
     
     return df
 
+def generate_yolo_submission(model_path, test_folder, output_file='submission.csv', conf=0.25):
+    """Генерация submission для YOLO detection.
+    Формат: image,class,confidence,x1,y1,x2,y2
+    """
+    from ultralytics import YOLO
+    
+    model = YOLO(model_path)
+    results_list = []
+    
+    for img_path in Path(test_folder).iterdir():
+        if img_path.suffix.lower() not in ['.jpg', '.jpeg', '.png', '.bmp']:
+            continue
+        
+        results = model.predict(str(img_path), conf=conf, verbose=False)
+        
+        for r in results:
+            boxes = r.boxes
+            if boxes is not None:
+                for box in boxes:
+                    x1, y1, x2, y2 = box.xyxy[0].tolist()
+                    cls_id = int(box.cls[0])
+                    conf_val = float(box.conf[0])
+                    cls_name = model.names[cls_id]
+                    
+                    results_list.append({
+                        'image': img_path.name,
+                        'class': cls_name,
+                        'confidence': conf_val,
+                        'x1': x1,
+                        'y1': y1,
+                        'x2': x2,
+                        'y2': y2
+                    })
+    
+    df = pd.DataFrame(results_list)
+    df.to_csv(output_file, index=False)
+    print(f"✅ YOLO submission сохранен: {output_file}")
+    print(f"📊 Строк: {len(df)}")
+    return df
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Генерация submission')
-    parser.add_argument('--checkpoint', required=True, help='Путь к чекпоинту')
+    parser.add_argument('--checkpoint', required=True, help='Путь к чекпоинту (.pth или .pt)')
     parser.add_argument('--test_folder', required=True, help='Папка с тестовыми изображениями')
     parser.add_argument('--output', default='submission.csv', help='Выходной файл')
-    parser.add_argument('--format', choices=['label', 'probabilities'], default='label',
-                       help='Формат: label (одна колонка) или probabilities (все классы)')
+    parser.add_argument('--format', choices=['label', 'probabilities', 'yolo'], default='label',
+                       help='label / probabilities / yolo (detection)')
+    parser.add_argument('--conf', type=float, default=0.25, help='Confidence для YOLO')
     
     args = parser.parse_args()
-    generate_classification_submission(args.checkpoint, args.test_folder, args.output, args.format)
+    
+    if args.format == 'yolo':
+        generate_yolo_submission(args.checkpoint, args.test_folder, args.output, args.conf)
+    else:
+        generate_classification_submission(args.checkpoint, args.test_folder, args.output, args.format)

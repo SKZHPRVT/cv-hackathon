@@ -44,10 +44,10 @@ datasets/
 *.bmp
 *.tif
 *.tiff
-*.csv
-*.json
+# *.csv  # НЕ игнорируем глобально
+# *.json  # НЕ игнорируем глобально
 *.xml
-*.txt
+# *.txt  # НЕ игнорируем глобально
 *.tar
 *.tar.gz
 *.zip

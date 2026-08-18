@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
 """
-Проверка окружения со smoke test:
-- CUDA
-- Forward pass
-- DataLoader
-- Optimizer step
-- Save/load checkpoint
-- YOLO
+Проверка окружения со smoke test.
+Возвращает exit code 1 при провале любого теста.
 """
 import sys
 import os
 import importlib
 import subprocess
+import tempfile
 from pathlib import Path
 import numpy as np
 
+FAILED = False
+
 def print_status(message, status):
+    global FAILED
     if status == "OK":
         print(f"✅ {message}")
     elif status == "WARN":
         print(f"⚠️  {message}")
     else:
         print(f"❌ {message}")
+        FAILED = True
 
 def check_python():
     version = sys.version_info
@@ -58,34 +58,38 @@ def check_gpu():
         return False
 
 def smoke_test_pytorch():
-    """Smoke test: forward pass, optimizer step, save/load."""
+    """Smoke test: CUDA forward/backward, optimizer step, save/load."""
     print("\n🔬 Smoke test PyTorch...")
     try:
         import torch
         import torch.nn as nn
         import torch.optim as optim
         
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
         # Forward pass
-        model = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
-        x = torch.randn(4, 10)
+        model = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2)).to(device)
+        x = torch.randn(4, 10, device=device)
         y = model(x)
         assert y.shape == (4, 2), f"Shape mismatch: {y.shape}"
-        print_status("Forward pass", "OK")
+        print_status(f"Forward pass ({device})", "OK")
         
-        # Optimizer step
+        # Backward pass
+        loss = nn.CrossEntropyLoss()(y, torch.tensor([0, 1, 0, 1], device=device))
         optimizer = optim.Adam(model.parameters(), lr=0.001)
-        loss = nn.CrossEntropyLoss()(y, torch.tensor([0, 1, 0, 1]))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print_status("Optimizer step + backward", "OK")
+        print_status(f"Backward + optimizer step ({device})", "OK")
         
-        # Save/load
-        torch.save(model.state_dict(), '/tmp/test_model.pth')
-        model2 = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
-        model2.load_state_dict(torch.load('/tmp/test_model.pth'))
-        print_status("Save/load checkpoint", "OK")
-        os.remove('/tmp/test_model.pth')
+        # Save/load с tempfile
+        with tempfile.NamedTemporaryFile(suffix='.pth', delete=False) as tmp:
+            tmp_path = tmp.name
+        torch.save(model.state_dict(), tmp_path)
+        model2 = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2)).to(device)
+        model2.load_state_dict(torch.load(tmp_path))
+        os.unlink(tmp_path)
+        print_status("Save/load checkpoint (tempfile)", "OK")
         
         return True
     except Exception as e:
@@ -93,7 +97,6 @@ def smoke_test_pytorch():
         return False
 
 def smoke_test_dataloader():
-    """Smoke test: DataLoader."""
     print("\n🔬 Smoke test DataLoader...")
     try:
         import torch
@@ -116,12 +119,11 @@ def smoke_test_dataloader():
         return False
 
 def smoke_test_timm():
-    """Smoke test: timm model."""
     print("\n🔬 Smoke test timm...")
     try:
         import timm
-        model = timm.create_model('resnet18', pretrained=False, num_classes=2)
         import torch
+        model = timm.create_model('resnet18', pretrained=False, num_classes=2)
         x = torch.randn(1, 3, 224, 224)
         y = model(x)
         assert y.shape == (1, 2)
@@ -131,21 +133,7 @@ def smoke_test_timm():
         print_status(f"Smoke test timm: {e}", "ERROR")
         return False
 
-def smoke_test_yolo():
-    """Smoke test: YOLO."""
-    print("\n🔬 Smoke test YOLO...")
-    try:
-        from ultralytics import YOLO
-        # Просто проверяем импорт и создание модели
-        model = YOLO('yolov8n.pt')  # Скачает если нет
-        print_status("YOLO загружен", "OK")
-        return True
-    except Exception as e:
-        print_status(f"Smoke test YOLO: {e}", "ERROR")
-        return False
-
 def smoke_test_onnx():
-    """Smoke test: ONNX."""
     print("\n🔬 Smoke test ONNX...")
     try:
         import onnx
@@ -154,6 +142,17 @@ def smoke_test_onnx():
         return True
     except ImportError as e:
         print_status(f"Smoke test ONNX: {e}", "ERROR")
+        return False
+
+def smoke_test_yolo():
+    print("\n🔬 Smoke test YOLO...")
+    try:
+        from ultralytics import YOLO
+        model = YOLO('yolov8n.pt')
+        print_status("YOLO загружен", "OK")
+        return True
+    except Exception as e:
+        print_status(f"Smoke test YOLO: {e}", "ERROR")
         return False
 
 def check_structure():
@@ -202,6 +201,7 @@ def main():
         ('onnxruntime', 'onnxruntime'),
         ('transformers', 'transformers'),
         ('diffusers', 'diffusers'),
+        ('imagehash', 'imagehash'),
     ]
     
     for lib_name, import_name in libraries:
@@ -218,14 +218,20 @@ def main():
     smoke_test_timm()
     smoke_test_onnx()
     
-    # YOLO тест опционален (требует скачивания)
-    response = input("\n🔬 Запустить smoke test YOLO? (требует скачивания ~6MB) [y/N]: ")
+    # YOLO опционально
+    response = input("\n🔬 Запустить smoke test YOLO? (скачает ~6MB) [y/N]: ")
     if response.lower() == 'y':
         smoke_test_yolo()
     
     print("\n" + "="*70)
-    print("✅ Проверка завершена!")
-    print("="*70)
+    if FAILED:
+        print("❌ ЕСТЬ ОШИБКИ! Исправьте и запустите снова.")
+        print("="*70)
+        sys.exit(1)
+    else:
+        print("✅ ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ!")
+        print("="*70)
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()

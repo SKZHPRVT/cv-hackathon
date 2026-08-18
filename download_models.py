@@ -88,18 +88,18 @@ def download_hf_models():
             print(f"  ⚠️ {model_name}: {e}")
 
 def check_offline():
-    """Проверка offline-режима."""
-    print("\n🔍 Проверка offline-режима...")
+    """Проверка offline-режима: реальная загрузка pretrained весов из кеша."""
+    print("\n🔍 Проверка offline-режима (pretrained weights)...")
     
-    # Проверяем кеш timm
+    # Проверяем кеш timm с pretrained=True
     import timm
     for model_name in ['resnet18', 'efficientnet_b0']:
         try:
-            # Пробуем загрузить без pretrained (должно работать offline)
-            model = timm.create_model(model_name, pretrained=False)
-            print(f"  ✅ {model_name}: создается без интернета")
-        except:
-            print(f"  ⚠️ {model_name}: не создается")
+            # Пробуем загрузить С pretrained весами (должно работать из кеша)
+            model = timm.create_model(model_name, pretrained=True)
+            print(f"  ✅ {model_name}: pretrained загружается")
+        except Exception as e:
+            print(f"  ⚠️ {model_name}: pretrained НЕ загружается ({e})")
     
     # Проверяем HF кеш
     hf_cache = Path.home() / '.cache' / 'huggingface'

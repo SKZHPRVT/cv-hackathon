@@ -62,10 +62,9 @@ def load_model_ui(checkpoint_path):
     except Exception as e:
         return f"❌ Ошибка: {str(e)}"
 
-def preprocess_image(image_bgr, image_size=224):
-    """Правильная предобработка: BGR -> RGB -> Normalize."""
-    # Gradio отдает BGR (как cv2)
-    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+def preprocess_image(image_rgb, image_size=224):
+    """Предобработка: Gradio отдает RGB, нормализуем напрямую."""
+    # Gradio отдает RGB (не BGR!)
     
     transform = A.Compose([
         A.Resize(image_size, image_size),
@@ -219,7 +218,7 @@ def visualize_augmentations_ui(image, num_examples=5):
         return None
     
     try:
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image_rgb = image  # Gradio уже отдает RGB
         transform = get_transforms(224, is_train=True, augmentation_config={
             'horizontal_flip': True,
             'brightness_contrast': True,
@@ -289,7 +288,7 @@ def hf_classify(image, model_name):
     
     try:
         model, processor = get_hf_model(model_name, 'classification')
-        image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        image_pil = Image.fromarray(image)  # Gradio уже отдает RGB
         inputs = processor(images=image_pil, return_tensors="pt")
         
         with torch.no_grad():
@@ -324,7 +323,7 @@ def hf_zero_shot(image, labels_text):
     try:
         model, processor = get_hf_model("openai/clip-vit-base-patch32", 'clip')
         labels = [l.strip() for l in labels_text.split(',')]
-        image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        image_pil = Image.fromarray(image)  # Gradio уже отдает RGB
         
         inputs = processor(text=labels, images=image_pil, return_tensors="pt", padding=True)
         
@@ -354,7 +353,7 @@ def hf_segment(image):
     
     try:
         model, processor = get_hf_model("facebook/sam-vit-base", 'sam')
-        image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        image_pil = Image.fromarray(image)  # Gradio уже отдает RGB
         inputs = processor(image_pil, return_tensors="pt")
         
         with torch.no_grad():

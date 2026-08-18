@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 from collections import Counter
 
 def split_dataset(source_path, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1, seed=42, 
-                 stratified=True, min_val_per_class=3):
+                 stratified=True, min_val_per_class=3, group_column=None, csv_path=None):
     """
     Стратифицированное разделение данных.
     
@@ -23,6 +23,34 @@ def split_dataset(source_path, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1, s
     """
     random.seed(seed)
     source_path = Path(source_path)
+    
+    # Group-aware split для CSV
+    if csv_path and group_column:
+        import pandas as pd
+        from sklearn.model_selection import GroupShuffleSplit
+        
+        df = pd.read_csv(csv_path)
+        groups = df[group_column].unique()
+        
+        gss = GroupShuffleSplit(n_splits=1, test_size=val_ratio + test_ratio, random_state=seed)
+        train_idx, temp_idx = next(gss.split(df, groups=df[group_column]))
+        
+        train_df = df.iloc[train_idx]
+        temp_df = df.iloc[temp_idx]
+        
+        gss2 = GroupShuffleSplit(n_splits=1, test_size=test_ratio / (val_ratio + test_ratio), random_state=seed)
+        val_idx, test_idx = next(gss2.split(temp_df, groups=temp_df[group_column]))
+        
+        val_df = temp_df.iloc[val_idx]
+        test_df = temp_df.iloc[test_idx]
+        
+        print(f"✅ Group-aware split по колонке '{group_column}'")
+        print(f"  Train: {len(train_df)}, Val: {len(val_df)}, Test: {len(test_df)}")
+        print(f"  Групп в train: {train_df[group_column].nunique()}")
+        print(f"  Групп в val: {val_df[group_column].nunique()}")
+        print(f"  Групп в test: {test_df[group_column].nunique()}")
+        
+        return train_df, val_df, test_df
     
     if not source_path.exists():
         print(f"❌ Путь {source_path} не существует")
@@ -61,14 +89,16 @@ def split_dataset(source_path, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1, s
     
     print(f"📊 Всего изображений: {total_images}")
     
-    # Проверяем минимальные требования
-    min_val_required = min_val_per_class * len(class_images)
-    total_val = int(total_images * val_ratio)
-    
-    if total_val < min_val_required:
-        # Уменьшаем val, чтобы гарантировать min_val_per_class
-        val_ratio = min_val_required / total_images
-        print(f"⚠️ Val ratio увеличен до {val_ratio:.2f} для гарантии {min_val_per_class} изображений на класс")
+    # Проверяем минимальные требования для КАЖДОГО класса
+    for class_name, images in class_images.items():
+        if len(images) < 3:
+            print(f"⚠️ Класс {class_name}: только {len(images)} изображений. Все в train.")
+            continue
+        
+        min_needed = min_val_per_class
+        if len(images) < min_needed:
+            min_needed = max(1, len(images) - 2)
+            print(f"⚠️ Класс {class_name}: min_val_per_class={min_val_per_class} > {len(images)}. Использую {min_needed}.")
     
     # Создаем структуру
     for split_name, ratio in [('train', train_ratio), ('val', val_ratio), ('test', test_ratio)]:

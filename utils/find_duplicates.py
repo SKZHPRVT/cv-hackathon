@@ -83,8 +83,8 @@ def find_near_duplicates(data_path, threshold=10):
         print(f"⚠️ Найдено {len(near_duplicates)} пар почти дубликатов:")
         for hash1, hash2, dist in near_duplicates:
             print(f"\n  Расстояние: {dist}")
-            print(f"    - {phases[hash1][0]}")
-            print(f"    - {phases[hash2][0]}")
+            print(f"    - {phashes[hash1][0]}")
+            print(f"    - {phashes[hash2][0]}")
     else:
         print("✅ Почти дубликатов не найдено")
     

@@ -96,7 +96,12 @@ def get_tta_transforms(image_size, tta_type='hflip'):
     
     return base_transforms
 
-def predict_with_tta(model, image_path, class_names, device, image_size=224, tta_type='hflip'):
+def predict_with_tta(model, image_path, class_names, device, image_size=224, tta_type='hflip', seed=42):
+    # Детерминированность
+    import random
+    import numpy as np
+    random.seed(seed)
+    np.random.seed(seed)
     """Предсказание с настраиваемым TTA."""
     image = cv2.imread(str(image_path))
     if image is None:
@@ -129,6 +134,7 @@ if __name__ == "__main__":
     parser.add_argument('--tta', choices=['none', 'hflip', 'vflip', 'all'], default='hflip',
                        help='Тип TTA (default: hflip)')
     parser.add_argument('--image_size', type=int, default=None)
+    parser.add_argument('--seed', type=int, default=42, help='Seed для воспроизводимости')
     
     args = parser.parse_args()
     
@@ -136,4 +142,4 @@ if __name__ == "__main__":
     model, class_names, checkpoint_image_size = load_model(args.checkpoint, device)
     
     image_size = args.image_size or checkpoint_image_size
-    predict_with_tta(model, args.image, class_names, device, image_size, args.tta)
+    predict_with_tta(model, args.image, class_names, device, image_size, args.tta, args.seed)
