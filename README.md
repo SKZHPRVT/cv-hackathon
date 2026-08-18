@@ -31,7 +31,7 @@ cv_hackathon/
 ├── models/                     # Кеш моделей (offline)
 │
 ├── train.py                    # Обучение (seed, журнал, гарантия чекпоинта)
-├── yolo_train.py               # YOLO (детекция/сегментация)
+├── yolo_train.py               # YOLO (CUDA через PyTorch, произвольный путь)
 ├── predict.py                  # Инференс
 ├── tta_predict.py              # TTA (none/hflip/vflip/all)
 ├── export_onnx.py              # ONNX + проверка эквивалентности
@@ -51,7 +51,8 @@ cv_hackathon/
 ├── embedding_search_README.txt # Гайд по поиску
 ├── hf_models_README.txt        # Гайд по HF моделям
 │
-├── requirements.txt            # Зависимости
+├── requirements.txt            # Зависимости (диапазоны)
+├── requirements-lock.txt       # Точные версии (зафиксированные)
 ├── .gitignore                  # Игнорирование
 └── README.md                   # Этот файл
 ```
@@ -64,12 +65,18 @@ cv_hackathon/
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
+# Или точные версии (воспроизводимость):
+pip install -r requirements-lock.txt
 ```
 
 ### 2. Проверка окружения (включая smoke test)
 
 ```bash
 python check_env.py
+
+# С YOLO тестом:
+python check_env.py --with-yolo
 ```
 
 ### 3. Скачивание моделей для offline-режима
@@ -96,6 +103,9 @@ python download_models.py --check
 ```bash
 # Стратифицированное разделение:
 python utils/split_data.py --source data/all_data --seed 42
+
+# Group-aware split (CSV с колонкой group):
+python utils/split_data.py --source data/all_data --csv data.csv --group_column patient_id
 
 # Проверить данные:
 python utils/check_data.py --path data/train
@@ -154,6 +164,9 @@ python generate_submission.py --checkpoint checkpoints/best_model.pth --test_fol
 
 # Вероятности:
 python generate_submission.py --checkpoint checkpoints/best_model.pth --test_folder data/test --format probabilities
+
+# YOLO detection:
+python generate_submission.py --checkpoint yolov8n.pt --test_folder data/test --format yolo
 ```
 
 ### 9. Веб-интерфейс
@@ -234,7 +247,11 @@ augmentation:
 - ✅ Offline-режим (download_models.py)
 - ✅ HF кеширование в памяти
 - ✅ ONNX эквивалентность
-- ✅ Полный тест пайплайна (test_pipeline.sh)
+- ✅ Полный тест пайплайна (test_pipeline.sh, 13 шагов)
+- ✅ Lock-файл зависимостей
+- ✅ Group-aware split
+- ✅ YOLO submission
+- ✅ Smoke test с exit code
 
 ## 🔧 Основные команды
 
