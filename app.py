@@ -1,3 +1,9 @@
+"""
+Веб-интерфейс CV Hackathon Toolkit.
+Исправления:
+- RGB/BGR正确处理
+- Кеширование HF моделей в памяти
+"""
 import gradio as gr
 import torch
 import cv2
@@ -10,7 +16,6 @@ import sys
 import yaml
 from pathlib import Path
 import shutil
-import tempfile
 import io
 import json
 import pandas as pd
@@ -18,31 +23,26 @@ import plotly.express as px
 import plotly.graph_objects as go
 from contextlib import redirect_stdout
 from datetime import datetime
-import threading
-import queue
 import time
 from PIL import Image
 
-# Добавляем utils в path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from utils.dataset import create_dataloaders, get_transforms
+from utils.dataset import create_dataloaders, get_transforms, MEAN, STD, DEFAULT_IMAGE_SIZE
 from utils.check_data import analyze_dataset
 from utils.split_data import split_dataset
 
 # Глобальные переменные
 MODEL = None
 CLASS_NAMES = None
+IMAGE_SIZE = 224
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-TRAINING_QUEUE = queue.Queue()
-TRAINING_LOG = []
 
-# HF модели
-HF_MODEL = None
-HF_PROCESSOR = None
+# Кеш HF моделей
+HF_CACHE = {}
 
 def load_model_ui(checkpoint_path):
-    """Загрузка модели через UI"""
-    global MODEL, CLASS_NAMES
+    """Загрузка модели с правильным препроцессингом из чекпоинта."""
+    global MODEL, CLASS_NAMES, IMAGE_SIZE
     
     try:
         checkpoint = torch.load(checkpoint_path, map_location=DEVICE)
@@ -50,19 +50,36 @@ def load_model_ui(checkpoint_path):
         model_name = config['model']['name']
         CLASS_NAMES = checkpoint['class_names']
         
+        # Берем image_size из чекпоинта
+        IMAGE_SIZE = checkpoint.get('image_size', config['training']['image_size'])
+        
         MODEL = timm.create_model(model_name, pretrained=False, num_classes=len(CLASS_NAMES))
         MODEL.load_state_dict(checkpoint['model_state_dict'])
         MODEL = MODEL.to(DEVICE)
         MODEL.eval()
         
-        return f"✅ Модель загружена: {model_name}\nКлассы: {CLASS_NAMES}"
+        return f"✅ Модель: {model_name}\nКлассы: {CLASS_NAMES}\nРазмер: {IMAGE_SIZE}px"
     except Exception as e:
-        return f"❌ Ошибка загрузки модели: {str(e)}"
+        return f"❌ Ошибка: {str(e)}"
+
+def preprocess_image(image_bgr, image_size=224):
+    """Правильная предобработка: BGR -> RGB -> Normalize."""
+    # Gradio отдает BGR (как cv2)
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    
+    transform = A.Compose([
+        A.Resize(image_size, image_size),
+        A.Normalize(mean=MEAN, std=STD),
+        ToTensorV2(),
+    ])
+    
+    augmented = transform(image=image_rgb)
+    return augmented['image'].unsqueeze(0)
 
 def predict_ui(image, checkpoint_path, top_k=3):
-    """Предсказание через UI"""
+    """Предсказание через UI."""
     if image is None:
-        return "Пожалуйста, загрузите изображение", None
+        return "Загрузите изображение", None
     
     if MODEL is None:
         result = load_model_ui(checkpoint_path)
@@ -70,14 +87,7 @@ def predict_ui(image, checkpoint_path, top_k=3):
             return result, None
     
     try:
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        transform = A.Compose([
-            A.Resize(224, 224),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ToTensorV2(),
-        ])
-        augmented = transform(image=image_rgb)
-        image_tensor = augmented['image'].unsqueeze(0).to(DEVICE)
+        image_tensor = preprocess_image(image, IMAGE_SIZE).to(DEVICE)
         
         with torch.no_grad():
             outputs = MODEL(image_tensor)
@@ -86,29 +96,22 @@ def predict_ui(image, checkpoint_path, top_k=3):
         top_probs, top_indices = torch.topk(probabilities, min(top_k, len(CLASS_NAMES)))
         
         result = "🎯 Предсказания:\n"
+        labels = []
+        probs_list = []
         for prob, idx in zip(top_probs[0], top_indices[0]):
             result += f"{CLASS_NAMES[idx]}: {prob.item()*100:.2f}%\n"
+            labels.append(CLASS_NAMES[idx])
+            probs_list.append(prob.item()*100)
         
-        fig = go.Figure(data=[
-            go.Bar(
-                x=[CLASS_NAMES[idx] for idx in top_indices[0]],
-                y=[prob.item()*100 for prob in top_probs[0]],
-                marker_color='lightblue'
-            )
-        ])
-        fig.update_layout(
-            title="Вероятности классов",
-            yaxis_title="Вероятность (%)",
-            xaxis_title="Класс",
-            height=400
-        )
+        fig = go.Figure(data=[go.Bar(x=labels, y=probs_list, marker_color='lightblue')])
+        fig.update_layout(title="Вероятности", yaxis_title="%", height=400)
         
         return result, fig
     except Exception as e:
         return f"❌ Ошибка: {str(e)}", None
 
 def predict_batch_ui(folder_path, checkpoint_path):
-    """Батч-предсказание для папки"""
+    """Батч-предсказание."""
     if not folder_path:
         return "Выберите папку"
     
@@ -119,45 +122,33 @@ def predict_batch_ui(folder_path, checkpoint_path):
                 return result
         
         results = []
-        image_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
         folder = Path(folder_path)
         
         for img_path in folder.iterdir():
-            if img_path.suffix.lower() in image_extensions:
+            if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']:
                 image = cv2.imread(str(img_path))
                 if image is None:
                     continue
                 
-                image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                transform = A.Compose([
-                    A.Resize(224, 224),
-                    A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                    ToTensorV2(),
-                ])
-                augmented = transform(image=image_rgb)
-                image_tensor = augmented['image'].unsqueeze(0).to(DEVICE)
+                image_tensor = preprocess_image(image, IMAGE_SIZE).to(DEVICE)
                 
                 with torch.no_grad():
                     outputs = MODEL(image_tensor)
-                    probabilities = torch.nn.functional.softmax(outputs, dim=1)
                     _, predicted = torch.max(outputs, 1)
+                    probs = torch.nn.functional.softmax(outputs, dim=1)
                 
                 results.append({
                     'image': img_path.name,
-                    'predicted_class': CLASS_NAMES[predicted.item()],
-                    'confidence': probabilities[0][predicted].item() * 100
+                    'predicted': CLASS_NAMES[predicted.item()],
+                    'confidence': probs[0][predicted].item() * 100
                 })
         
-        if results:
-            df = pd.DataFrame(results)
-            return df
-        else:
-            return "Нет изображений в папке"
+        return pd.DataFrame(results) if results else "Нет изображений"
     except Exception as e:
         return f"❌ Ошибка: {str(e)}"
 
 def analyze_data_ui(data_path):
-    """Анализ данных через UI"""
+    """Анализ данных."""
     try:
         f = io.StringIO()
         with redirect_stdout(f):
@@ -167,7 +158,6 @@ def analyze_data_ui(data_path):
         data_path = Path(data_path)
         classes = [d.name for d in data_path.iterdir() if d.is_dir()]
         class_counts = []
-        
         for class_name in classes:
             class_path = data_path / class_name
             count = len([f for f in class_path.glob("*") if f.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']])
@@ -182,7 +172,7 @@ def analyze_data_ui(data_path):
         return f"❌ Ошибка: {str(e)}", None
 
 def split_data_ui(source_path, train_ratio, val_ratio, test_ratio):
-    """Разделение данных через UI"""
+    """Разделение данных."""
     try:
         f = io.StringIO()
         with redirect_stdout(f):
@@ -191,13 +181,12 @@ def split_data_ui(source_path, train_ratio, val_ratio, test_ratio):
     except Exception as e:
         return f"❌ Ошибка: {str(e)}"
 
-def train_ui_async(config_path, epochs, model_name, fast_mode, progress=gr.Progress()):
-    """Асинхронное обучение"""
+def train_ui_async(config_path, epochs, model_name, fast_mode, seed=42):
+    """Асинхронное обучение."""
     try:
         import subprocess
         
-        cmd = [sys.executable, "train.py", "--config", config_path]
-        
+        cmd = [sys.executable, "train.py", "--config", config_path, "--seed", str(seed)]
         if epochs:
             cmd.extend(["--epochs", str(int(epochs))])
         if model_name:
@@ -206,77 +195,100 @@ def train_ui_async(config_path, epochs, model_name, fast_mode, progress=gr.Progr
             cmd.append("--fast")
         
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        
         output_lines = []
-        start_time = time.time()
         
         while True:
             if process.poll() is not None:
                 break
-            
             line = process.stdout.readline()
             if line:
                 output_lines.append(line.strip())
-            
             time.sleep(0.1)
-            
-            if time.time() - start_time > 3600:
-                process.kill()
-                return "⏱️ Превышен таймаут обучения (1 час)"
         
-        remaining_output = process.stdout.read()
-        if remaining_output:
-            output_lines.extend(remaining_output.strip().split('\n'))
+        remaining = process.stdout.read()
+        if remaining:
+            output_lines.extend(remaining.strip().split('\n'))
         
         return "\n".join(output_lines[-100:])
     except Exception as e:
         return f"❌ Ошибка: {str(e)}"
 
 def visualize_augmentations_ui(image, num_examples=5):
-    """Визуализация аугментаций"""
+    """Визуализация аугментаций."""
     if image is None:
         return None
     
     try:
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        transform = get_transforms(224, is_train=True)
+        transform = get_transforms(224, is_train=True, augmentation_config={
+            'horizontal_flip': True,
+            'brightness_contrast': True,
+        })
         
         augmented_images = []
-        for i in range(num_examples):
+        for _ in range(num_examples):
             augmented = transform(image=image_rgb)
             aug_img = augmented['image'].permute(1, 2, 0).numpy()
-            mean = np.array([0.485, 0.456, 0.406])
-            std = np.array([0.229, 0.224, 0.225])
-            aug_img = (aug_img * std + mean)
+            aug_img = (aug_img * np.array(STD) + np.array(MEAN))
             aug_img = np.clip(aug_img, 0, 1)
             augmented_images.append(aug_img)
         
         fig = go.Figure()
         for i, img in enumerate(augmented_images):
-            fig.add_trace(go.Image(z=img, name=f'Augmentation {i+1}'))
-        fig.update_layout(
-            title="Примеры аугментаций",
-            grid={'rows': 1, 'columns': num_examples},
-            height=300
-        )
+            fig.add_trace(go.Image(z=img, name=f'Aug {i+1}'))
+        fig.update_layout(height=300)
         
         return fig
     except Exception as e:
         return None
 
-# ============ HUGGING FACE ФУНКЦИИ ============
+# ============ HUGGING FACE (с кешированием) ============
 
-def hf_classify(image, model_name):
-    """Классификация через Hugging Face"""
-    if image is None:
-        return "Загрузите изображение"
+def get_hf_model(model_name, model_type='classification'):
+    """Получение HF модели из кеша или загрузка."""
+    cache_key = f"{model_type}_{model_name}"
     
-    try:
+    if cache_key in HF_CACHE:
+        print(f"📦 Модель {model_name} из кеша")
+        return HF_CACHE[cache_key]
+    
+    print(f"📥 Загрузка модели {model_name}...")
+    
+    if model_type == 'classification':
         from transformers import AutoImageProcessor, AutoModelForImageClassification
-        
         processor = AutoImageProcessor.from_pretrained(model_name)
         model = AutoModelForImageClassification.from_pretrained(model_name)
-        
+        HF_CACHE[cache_key] = (model, processor)
+    elif model_type == 'clip':
+        from transformers import CLIPProcessor, CLIPModel
+        model = CLIPModel.from_pretrained(model_name)
+        processor = CLIPProcessor.from_pretrained(model_name)
+        HF_CACHE[cache_key] = (model, processor)
+    elif model_type == 'sam':
+        from transformers import SamModel, SamProcessor
+        model = SamModel.from_pretrained(model_name)
+        processor = SamProcessor.from_pretrained(model_name)
+        HF_CACHE[cache_key] = (model, processor)
+    elif model_type == 'diffusion':
+        from diffusers import StableDiffusionPipeline
+        pipe = StableDiffusionPipeline.from_pretrained(
+            model_name,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+        )
+        if torch.cuda.is_available():
+            pipe = pipe.to("cuda")
+        HF_CACHE[cache_key] = pipe
+        return pipe
+    
+    return HF_CACHE[cache_key]
+
+def hf_classify(image, model_name):
+    """Классификация через HF (с кешированием)."""
+    if image is None:
+        return "Загрузите изображение", None
+    
+    try:
+        model, processor = get_hf_model(model_name, 'classification')
         image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         inputs = processor(images=image_pil, return_tensors="pt")
         
@@ -286,10 +298,9 @@ def hf_classify(image, model_name):
         
         top_probs, top_indices = torch.topk(probs, 5)
         
-        result = "🎯 Топ-5 предсказаний:\n"
+        result = "🎯 Топ-5:\n"
         labels = []
         probs_list = []
-        
         for prob, idx in zip(top_probs[0], top_indices[0]):
             label = model.config.id2label[idx.item()]
             result += f"{label}: {prob.item()*100:.2f}%\n"
@@ -297,25 +308,21 @@ def hf_classify(image, model_name):
             probs_list.append(prob.item()*100)
         
         fig = go.Figure(data=[go.Bar(x=labels, y=probs_list, marker_color='lightgreen')])
-        fig.update_layout(title="HF Classifier", yaxis_title="Вероятность (%)", height=400)
+        fig.update_layout(title="HF Classification", height=400)
         
         return result, fig
     except Exception as e:
         return f"❌ Ошибка: {str(e)}", None
 
 def hf_zero_shot(image, labels_text):
-    """Zero-shot классификация через CLIP"""
+    """Zero-shot через CLIP (с кешированием)."""
     if image is None:
-        return "Загрузите изображение"
+        return "Загрузите изображение", None
     if not labels_text:
-        return "Введите метки"
+        return "Введите метки", None
     
     try:
-        from transformers import CLIPProcessor, CLIPModel
-        
-        model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-        processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-        
+        model, processor = get_hf_model("openai/clip-vit-base-patch32", 'clip')
         labels = [l.strip() for l in labels_text.split(',')]
         image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         
@@ -325,33 +332,28 @@ def hf_zero_shot(image, labels_text):
             outputs = model(**inputs)
             probs = outputs.logits_per_image.softmax(dim=1)
         
-        result = "🏷️ Zero-shot классификация:\n"
+        result = "🏷️ Zero-shot:\n"
         labels_list = []
         probs_list = []
-        
         for label, prob in zip(labels, probs[0]):
             result += f"{label}: {prob.item()*100:.2f}%\n"
             labels_list.append(label)
             probs_list.append(prob.item()*100)
         
         fig = go.Figure(data=[go.Bar(x=labels_list, y=probs_list, marker_color='orange')])
-        fig.update_layout(title="CLIP Zero-shot", yaxis_title="Вероятность (%)", height=400)
+        fig.update_layout(title="CLIP Zero-shot", height=400)
         
         return result, fig
     except Exception as e:
         return f"❌ Ошибка: {str(e)}", None
 
 def hf_segment(image):
-    """Сегментация через SAM"""
+    """Сегментация через SAM (с кешированием)."""
     if image is None:
-        return "Загрузите изображение"
+        return "Загрузите изображение", None
     
     try:
-        from transformers import SamModel, SamProcessor
-        
-        model = SamModel.from_pretrained("facebook/sam-vit-base")
-        processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
-        
+        model, processor = get_hf_model("facebook/sam-vit-base", 'sam')
         image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         inputs = processor(image_pil, return_tensors="pt")
         
@@ -361,29 +363,20 @@ def hf_segment(image):
         mask = outputs.pred_masks[0, 0].cpu().numpy()
         mask = (mask > 0).astype(np.uint8) * 255
         
-        # Создаем визуализацию
         fig = go.Figure(data=go.Heatmap(z=mask, colorscale='gray'))
-        fig.update_layout(title="SAM Segmentation Mask", height=400)
+        fig.update_layout(title="SAM Mask", height=400)
         
         return "✅ Сегментация выполнена", fig
     except Exception as e:
         return f"❌ Ошибка: {str(e)}", None
 
 def hf_generate(prompt):
-    """Генерация через Stable Diffusion"""
+    """Генерация через Stable Diffusion (с кешированием)."""
     if not prompt:
         return "Введите промпт", None
     
     try:
-        from diffusers import StableDiffusionPipeline
-        
-        pipe = StableDiffusionPipeline.from_pretrained(
-            "runwayml/stable-diffusion-v1-5",
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
-        )
-        if torch.cuda.is_available():
-            pipe = pipe.to("cuda")
-        
+        pipe = get_hf_model("runwayml/stable-diffusion-v1-5", 'diffusion')
         image = pipe(prompt).images[0]
         
         return f"✅ Сгенерировано: {prompt}", image
@@ -398,22 +391,18 @@ with gr.Blocks(title="CV Hackathon Toolkit Pro") as app:
     Максимально быстрый интерфейс для победы на хакатоне
     """)
     
-    # Вкладка 1: Инференс
     with gr.Tab("🔮 Инференс"):
         gr.Markdown("### Предсказание на изображении")
         with gr.Row():
             with gr.Column(scale=1):
                 image_input = gr.Image(label="Загрузите изображение")
-                checkpoint_input = gr.Textbox(
-                    label="Путь к чекпоинту",
-                    value="checkpoints/best_model.pth"
-                )
+                checkpoint_input = gr.Textbox(label="Путь к чекпоинту", value="checkpoints/best_model.pth")
                 top_k = gr.Slider(1, 5, value=3, step=1, label="Топ-K")
                 predict_btn = gr.Button("🎯 Предсказать", variant="primary", size="lg")
                 
                 gr.Markdown("### Батч-предсказание")
                 folder_input = gr.Textbox(label="Путь к папке")
-                batch_btn = gr.Button("📁 Обработать папку", variant="secondary")
+                batch_btn = gr.Button("📁 Обработать", variant="secondary")
             
             with gr.Column(scale=1):
                 prediction_output = gr.Textbox(label="Результат", lines=8)
@@ -423,7 +412,6 @@ with gr.Blocks(title="CV Hackathon Toolkit Pro") as app:
         predict_btn.click(fn=predict_ui, inputs=[image_input, checkpoint_input, top_k], outputs=[prediction_output, prediction_plot])
         batch_btn.click(fn=predict_batch_ui, inputs=[folder_input, checkpoint_input], outputs=batch_output)
     
-    # Вкладка 2: Анализ данных
     with gr.Tab("📊 Анализ данных"):
         gr.Markdown("### Анализ датасета")
         with gr.Row():
@@ -437,13 +425,12 @@ with gr.Blocks(title="CV Hackathon Toolkit Pro") as app:
             
             with gr.Column():
                 analysis_output = gr.Textbox(label="Результаты", lines=15)
-                class_distribution = gr.Plot(label="Распределение классов")
+                class_distribution = gr.Plot(label="Распределение")
                 aug_output = gr.Plot(label="Аугментации")
         
         analyze_btn.click(fn=analyze_data_ui, inputs=[data_path_input], outputs=[analysis_output, class_distribution])
         aug_btn.click(fn=visualize_augmentations_ui, inputs=[aug_image_input], outputs=aug_output)
     
-    # Вкладка 3: Разделение данных
     with gr.Tab("🔀 Разделение данных"):
         gr.Markdown("### Разделение на train/val/test")
         source_path_input = gr.Textbox(label="Путь к данным", placeholder="data/all_data")
@@ -456,7 +443,6 @@ with gr.Blocks(title="CV Hackathon Toolkit Pro") as app:
         
         split_btn.click(fn=split_data_ui, inputs=[source_path_input, train_ratio, val_ratio, test_ratio], outputs=split_output)
     
-    # Вкладка 4: Обучение
     with gr.Tab("🎓 Обучение"):
         gr.Markdown("### Запуск обучения")
         with gr.Row():
@@ -469,16 +455,16 @@ with gr.Blocks(title="CV Hackathon Toolkit Pro") as app:
                     value=None
                 )
                 fast_mode = gr.Checkbox(label="Fast mode", value=False)
+                seed_input = gr.Number(label="Seed", value=42, precision=0)
                 train_btn = gr.Button("🚀 Обучить", variant="primary", size="lg")
             
             with gr.Column():
                 train_output = gr.Textbox(label="Лог", lines=25)
         
-        train_btn.click(fn=train_ui_async, inputs=[config_path_input, epochs_input, model_input, fast_mode], outputs=train_output)
+        train_btn.click(fn=train_ui_async, inputs=[config_path_input, epochs_input, model_input, fast_mode, seed_input], outputs=train_output)
     
-    # Вкладка 5: Hugging Face
     with gr.Tab("🤗 Hugging Face"):
-        gr.Markdown("### Современные модели через Hugging Face")
+        gr.Markdown("### HF модели (кешируются в памяти)")
         
         with gr.Tab("Классификация"):
             with gr.Row():
@@ -486,12 +472,7 @@ with gr.Blocks(title="CV Hackathon Toolkit Pro") as app:
                     hf_classify_image = gr.Image(label="Изображение")
                     hf_model_select = gr.Dropdown(
                         label="Модель",
-                        choices=[
-                            "google/vit-base-patch16-224",
-                            "microsoft/swin-tiny-patch4-window7-224",
-                            "facebook/convnext-tiny-224",
-                            "microsoft/resnet-50"
-                        ],
+                        choices=["google/vit-base-patch16-224", "microsoft/swin-tiny-patch4-window7-224", "facebook/convnext-tiny-224"],
                         value="google/vit-base-patch16-224"
                     )
                     hf_classify_btn = gr.Button("🏷️ Классифицировать", variant="primary")
@@ -503,7 +484,7 @@ with gr.Blocks(title="CV Hackathon Toolkit Pro") as app:
             with gr.Row():
                 with gr.Column():
                     hf_zs_image = gr.Image(label="Изображение")
-                    hf_zs_labels = gr.Textbox(label="Метки через запятую", value="cat, dog, car, person")
+                    hf_zs_labels = gr.Textbox(label="Метки", value="cat, dog, car, person")
                     hf_zs_btn = gr.Button("🏷️ Zero-shot", variant="primary")
                 with gr.Column():
                     hf_zs_output = gr.Textbox(label="Результат", lines=5)
@@ -518,7 +499,7 @@ with gr.Blocks(title="CV Hackathon Toolkit Pro") as app:
                     hf_seg_output = gr.Textbox(label="Результат", lines=3)
                     hf_seg_plot = gr.Plot(label="Маска")
         
-        with gr.Tab("Генерация (Stable Diffusion)"):
+        with gr.Tab("Генерация (SD)"):
             with gr.Row():
                 with gr.Column():
                     hf_gen_prompt = gr.Textbox(label="Промпт", placeholder="a cat sitting on a table")
@@ -535,9 +516,8 @@ with gr.Blocks(title="CV Hackathon Toolkit Pro") as app:
     gr.Markdown("""
     ---
     ### 💡 Советы:
-    - **Ctrl+Enter** - быстрое предсказание
-    - **Drag & Drop** - перетащите изображение
-    - **HF модели** - скачайте заранее для офлайн-работы
+    - HF модели кешируются после первой загрузки
+    - Ctrl+Enter — быстрое предсказание
     """)
 
 if __name__ == "__main__":
