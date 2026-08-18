@@ -105,3 +105,6 @@ search_results/
 
 # Hugging Face
 !hf_models_README.txt
+
+# App guide
+!APP_GUIDE.txt
