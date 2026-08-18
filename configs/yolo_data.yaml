@@ -1,0 +1,12 @@
+# Шаблон конфигурации для YOLO
+# Замените пути на свои
+
+train: data/train/images
+val: data/val/images
+test: data/test/images
+
+# Количество классов
+nc: 2
+
+# Имена классов
+names: ['class1', 'class2']

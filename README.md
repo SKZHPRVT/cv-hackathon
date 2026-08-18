@@ -7,7 +7,8 @@
 ```
 cv_hackathon/
 ├── configs/                    # Конфигурационные файлы
-│   └── config.yaml             # Основной конфиг обучения
+│   ├── config.yaml             # Основной конфиг обучения
+│   └── yolo_data.yaml          # Конфиг для YOLO
 │
 ├── utils/                      # Вспомогательные модули
 │   ├── __init__.py             # Инициализация пакета
@@ -27,8 +28,11 @@ cv_hackathon/
 │
 ├── models/                     # Дополнительные модели
 │
-├── train.py                    # Скрипт обучения
+├── train.py                    # Скрипт обучения (классификация)
+├── yolo_train.py               # Скрипт обучения YOLO (детекция)
 ├── predict.py                  # Скрипт инференса
+├── tta_predict.py              # Инференс с TTA
+├── export_onnx.py              # Конвертация в ONNX
 ├── app.py                      # Веб-интерфейс (Gradio)
 ├── check_env.py                # Проверка окружения
 │
@@ -68,7 +72,7 @@ python utils/split_data.py --source data/all_data
 python utils/check_data.py --path data/train
 ```
 
-### 4. Обучение
+### 4. Обучение классификации
 
 ```bash
 # Быстрый тест (1 эпоха):
@@ -81,17 +85,33 @@ python train.py
 python train.py --model efficientnet_b0
 ```
 
-### 5. Инференс
+### 5. Обучение детекции (YOLO)
 
 ```bash
-# Одно изображение:
-python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+# Обучение YOLO:
+python yolo_train.py --mode train --data configs/yolo_data.yaml --model n --epochs 50
 
-# Папка с изображениями:
-python predict.py --checkpoint checkpoints/best_model.pth --folder test_images/
+# Инференс YOLO:
+python yolo_train.py --mode predict --model runs/detect/train/weights/best.pt --source test.jpg
+
+# Экспорт YOLO в ONNX:
+python yolo_train.py --mode export --model runs/detect/train/weights/best.pt
 ```
 
-### 6. Веб-интерфейс
+### 6. Инференс
+
+```bash
+# Обычное предсказание:
+python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+
+# Предсказание с TTA (повышенная точность):
+python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+
+# Конвертация в ONNX:
+python export_onnx.py --checkpoint checkpoints/best_model.pth --output model.onnx
+```
+
+### 7. Веб-интерфейс
 
 ```bash
 python app.py
@@ -105,12 +125,17 @@ python app.py
 - **PRESENTATION_TEMPLATE.txt** — шаблон для презентации результатов
 - **HACKATHON_GUIDE.txt** — руководство по хакатону с подводными камнями
 
-## 🎯 Поддерживаемые модели (timm)
+## 🎯 Поддерживаемые задачи
 
+### Классификация (timm)
 - `resnet18`, `resnet34`, `resnet50` — быстрые и надежные
 - `efficientnet_b0`, `efficientnet_b3` — точные и эффективные
 - `mobilenetv3_large_100` — для мобильных устройств
 - `vit_base_patch16_224` — Vision Transformer
+
+### Детекция (YOLO)
+- `yolov8n`, `yolov8s`, `yolov8m`, `yolov8l`, `yolov8x`
+- Задачи: detect, segment, classify, pose
 
 ## 📊 Аугментации (Albumentations)
 
@@ -133,11 +158,20 @@ python utils/check_data.py --path data/train
 # Разделение данных
 python utils/split_data.py --source data/all_data
 
-# Обучение
+# Обучение классификации
 python train.py --model resnet18 --epochs 50
+
+# Обучение детекции
+python yolo_train.py --mode train --data configs/yolo_data.yaml
 
 # Инференс
 python predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+
+# TTA предсказание
+python tta_predict.py --checkpoint checkpoints/best_model.pth --image test.jpg
+
+# ONNX конвертация
+python export_onnx.py --checkpoint checkpoints/best_model.pth
 
 # Веб-интерфейс
 python app.py
