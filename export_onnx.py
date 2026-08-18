@@ -29,7 +29,7 @@ def export_to_onnx(checkpoint_path, output_path='model.onnx', image_size=224):
         dummy_input,
         output_path,
         export_params=True,
-        opset_version=12,
+        opset_version=18,
         do_constant_folding=True,
         input_names=['input'],
         output_names=['output'],

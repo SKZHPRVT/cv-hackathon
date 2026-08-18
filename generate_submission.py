@@ -62,8 +62,11 @@ def generate_classification_submission(checkpoint_path, test_folder, output_file
     test_folder = Path(test_folder)
     results = []
     
-    for img_path in test_folder.iterdir():
-        if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']:
+    # Рекурсивный поиск изображений
+    image_paths = list(test_folder.rglob("*"))
+    image_paths = [p for p in image_paths if p.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']]
+    
+    for img_path in image_paths:
             probs = predict_image(model, img_path, class_names, image_size, device)
             if probs is None:
                 continue
@@ -79,6 +82,10 @@ def generate_classification_submission(checkpoint_path, test_folder, output_file
                 for i, cls in enumerate(class_names):
                     row[cls] = probs[i]
                 results.append(row)
+    
+    if not results:
+        print("⚠️ Не найдено изображений для предсказания")
+        return None
     
     df = pd.DataFrame(results)
     df.to_csv(output_file, index=False)
